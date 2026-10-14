@@ -1,0 +1,12 @@
+[package]
+name = "qsp_core"
+version = "0.1.0"
+edition = "2021"
+license = "LGPL-2.1-or-later"
+description = "Rust port of the QSP (Quest Soft Player) text-quest engine (libqsp 5.7.0)"
+
+[dependencies]
+fancy-regex = "0.19"
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]

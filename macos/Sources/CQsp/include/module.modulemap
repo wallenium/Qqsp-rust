@@ -1,0 +1,1 @@
+module CQsp { header "qsp_core.h" export * }
