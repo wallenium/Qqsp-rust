@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Timeline window (⌥⌘T): all moves of the session with location, time, chosen action and text; jump to any state; save any state as a named bookmark (shown in Saves)
+- Watchlist shows a small chart of each pinned number across moves
 - Variable editor: pin variables, highlight values changed since the last move (with the previous value), filters for pinned/changed
 - Watchlist window (⇧⌘W) for pinned variables
 - Presets: save pinned variables as a named preset and apply it in one move

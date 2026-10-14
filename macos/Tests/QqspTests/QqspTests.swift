@@ -138,4 +138,20 @@ final class QqspTests: XCTestCase {
         m.reloadDebugVars()
         XCTAssertEqual(m.debugVars.first { $0.name == "GOLD" }?.num, 1)
     }
+
+    func testTimelineJump() throws {
+        let m = GameModel()
+        m.loadGame(url: try tempGame())
+        m.exec("n = 1")
+        m.exec("n = 2")
+        m.exec("n = 3")
+        XCTAssertEqual(m.timeline.filter { $0.kind == .past }.count, 3)
+        m.jump(toStep: 1)                       // Zustand vor „n = 2“ → n == 1
+        m.reloadDebugVars()
+        XCTAssertEqual(m.debugVars.first { $0.name == "N" }?.num, 1)
+        XCTAssertEqual(m.timeline.filter { $0.kind == .future }.count, 2)
+        m.redo(); m.redo()
+        m.reloadDebugVars()
+        XCTAssertEqual(m.debugVars.first { $0.name == "N" }?.num, 3)
+    }
 }

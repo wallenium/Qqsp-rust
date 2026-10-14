@@ -41,6 +41,10 @@ final class GameModel {
     var changedVars: Set<String> = []
     var previousValues: [String: String] = [:]
     var presets: [Preset] = []
+    /// Zeitleiste für das Zeitleisten-Fenster (vergangene Zustände, aktueller, zukünftige)
+    var timeline: [TimelineRow] = []
+    /// Verlauf pinnbarer Zahlenwerte über die Züge (für die Mini-Kurven der Watchlist)
+    var series: [String: [Int]] = [:]
 
     // Verlauf, Spielstand-Slots, Debug
     var recent: [String] = UserDefaults.standard.stringArray(forKey: "recentGames") ?? []
@@ -62,12 +66,13 @@ final class GameModel {
     @ObservationIgnored let audio = Audio()
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored var gameFile = ""          // voller Pfad der .qsp-Datei
-    @ObservationIgnored private var history: [Data] = []
-    @ObservationIgnored private var future: [Data] = []
+    @ObservationIgnored private var history: [Step] = []
+    @ObservationIgnored private var future: [Step] = []
     @ObservationIgnored private var activeSince: Date?
     @ObservationIgnored private var lastValues: [String: String]?
     @ObservationIgnored private var baseline: [String: String] = [:]
     @ObservationIgnored private var baselineRev = -1
+    @ObservationIgnored private var seriesRev = -1
     @ObservationIgnored private var restoredFrame = false
     @ObservationIgnored var gamePath = ""         // Verzeichnis der .qsp-Datei
     @ObservationIgnored private var timer: Timer?
@@ -170,7 +175,7 @@ final class GameModel {
         look = loadLook()
         pins = Set(defaults.stringArray(forKey: "pins." + path) ?? [])
         presets = defaults.data(forKey: "presets." + path).flatMap { try? JSONDecoder().decode([Preset].self, from: $0) } ?? []
-        lastValues = nil; baselineRev = -1; changedVars = []; previousValues = [:]
+        lastValues = nil; baselineRev = -1; seriesRev = -1; changedVars = []; previousValues = [:]; series = [:]
         restoreFrame()
         history = []; future = []; syncUndo()
         defaults.set(Date(), forKey: "lastPlayed." + path)
@@ -302,6 +307,15 @@ final class GameModel {
         if baselineRev == -1 { baseline = cur; baselineRev = revision }
         else if revision != baselineRev { baseline = lastValues ?? cur; baselineRev = revision }
         lastValues = cur
+        if revision != seriesRev {     // pro Zug ein Punkt für jede angepinnte Zahl
+            seriesRev = revision
+            for v in vars where pins.contains(v.key) {
+                var a = series[v.key] ?? []
+                a.append(v.num)
+                if a.count > 200 { a.removeFirst(a.count - 200) }
+                series[v.key] = a
+            }
+        }
         var ch = Set<String>(); var prev: [String: String] = [:]
         for (k, val) in cur where baseline[k] != val { ch.insert(k); prev[k] = baseline[k] ?? "" }
         changedVars = ch; previousValues = prev
@@ -340,18 +354,25 @@ final class GameModel {
 
     // MARK: Aktionen / Eingabe
     func choose(action i: Int) { core.selectAction(i) }
-    func run(action i: Int) { beginAction(); core.selectAction(i); core.runAction() }
-    func runSelected() { beginAction(); core.runAction() }
+    func run(action i: Int) { beginAction(label: actionLabel(i)); core.selectAction(i); core.runAction() }
+    private func actionLabel(_ i: Int) -> String { actions.indices.contains(i) ? RichText.plainText(actions[i].text) : "" }
+    func runSelected() { beginAction(label: actionLabel(selAction)); core.runAction() }
     func choose(object i: Int) { core.selectObject(i) }
-    func submitInput() { beginAction(); core.setInput(input); core.userInput() }
-    func exec(_ code: String) { beginAction(); _ = core.exec(code) }
+    func submitInput() { beginAction(label: "> " + input); core.setInput(input); core.userInput() }
+    func exec(_ code: String) { beginAction(label: String(code.prefix(60))); _ = core.exec(code) }
 
-    // MARK: Zeitreise (Zug zurück / wiederholen) – Schnappschüsse als Spielstand-Daten im Speicher
-    private func snapshot() -> Data? {
+    // MARK: Zeitreise (Zug zurück / wiederholen / Sprung) – Schnappschüsse als Spielstand-Daten im Speicher
+    private func snapshotData() -> Data? {
         let p = NSTemporaryDirectory() + "qqsp-\(UUID().uuidString).sav"
         defer { try? FileManager.default.removeItem(atPath: p) }
         guard core.save(path: p) else { return nil }
         return try? Data(contentsOf: URL(fileURLWithPath: p))
+    }
+    /// Schnappschuss des aktuellen Zustands samt Anzeige-Daten (Ort, Text, Uhrzeit).
+    private func makeStep(label: String = "") -> Step? {
+        guard let d = snapshotData() else { return nil }
+        let t = Self.plain(mainDesc).split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return Step(data: d, date: Date(), loc: core.curLoc(), preview: String(t.suffix(140)), label: label)
     }
     private func restore(_ d: Data) {
         let p = NSTemporaryDirectory() + "qqsp-\(UUID().uuidString).sav"
@@ -359,24 +380,53 @@ final class GameModel {
         guard (try? d.write(to: URL(fileURLWithPath: p))) != nil else { return }
         if !core.open(saved: p) { report() }
     }
-    private func syncUndo() { canUndo = !history.isEmpty; canRedo = !future.isEmpty }
-    /// Vor jeder Spieleraktion aufrufen. Spiele mit NOSAVE bleiben ohne Verlauf.
-    func beginAction() {
-        guard gameLoaded, !noSave, let s = snapshot() else { return }
+    private func syncUndo() {
+        canUndo = !history.isEmpty; canRedo = !future.isEmpty
+        var rows: [TimelineRow] = history.enumerated().map { TimelineRow(id: $0.offset, kind: .past, step: $0.element) }
+        rows.append(TimelineRow(id: history.count, kind: .current, step: Step(data: Data(), date: Date(), loc: gameLoaded ? core.curLoc() : "", preview: "", label: "")))
+        for (j, st) in future.reversed().enumerated() { rows.append(TimelineRow(id: history.count + 1 + j, kind: .future, step: st)) }
+        timeline = rows
+    }
+    /// Vor jeder Spieleraktion aufrufen (label = Beschriftung der Aktion). Spiele mit NOSAVE bleiben ohne Verlauf.
+    func beginAction(label: String = "") {
+        guard gameLoaded, !noSave, let s = makeStep(label: label) else { return }
         history.append(s)
         if history.count > 100 { history.removeFirst(history.count - 100) }
         future.removeAll()
         syncUndo()
     }
     func undo() {
-        guard let prev = history.last, let cur = snapshot() else { return }
+        guard let prev = history.last, let cur = makeStep() else { return }
         history.removeLast(); future.append(cur)
-        restore(prev); syncUndo()
+        restore(prev.data); syncUndo()
     }
     func redo() {
-        guard let next = future.last, let cur = snapshot() else { return }
+        guard let next = future.last, let cur = makeStep() else { return }
         future.removeLast(); history.append(cur)
-        restore(next); syncUndo()
+        restore(next.data); syncUndo()
+    }
+    /// Springt direkt zu einem früheren Zustand der Zeitleiste (id = Index in `history`).
+    func jump(toStep i: Int) {
+        guard history.indices.contains(i), let cur = makeStep() else { return }
+        let target = history[i]
+        future.append(cur)
+        future.append(contentsOf: history[(i + 1)...].reversed())
+        history.removeSubrange(i...)
+        restore(target.data); syncUndo()
+    }
+    /// Springt zu einem zukünftigen Zustand (nach Rückgängig).
+    func jump(toFuture offset: Int) {   // offset 0 = nächster Redo-Schritt
+        for _ in 0...max(offset, 0) { redo() }
+    }
+    /// Legt einen Zeitleisten-Zustand als benannten Spielstand (Lesezeichen) ab.
+    func bookmark(step: Step, name: String) {
+        guard !name.isEmpty else { return }
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
+        let safe = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let path = slotDir + "/\(f.string(from: step.date))__\(safe).sav"
+        try? step.data.write(to: URL(fileURLWithPath: path))
+        try? String(step.preview).write(toFile: path + ".txt", atomically: true, encoding: .utf8)
+        refreshSlots()
     }
 
     // MARK: Spielzeit
@@ -534,6 +584,8 @@ struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; le
 /// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
 struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int?; var statusFont: Int? }
 struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String?; var isKey = false; var key: String { name + "[" + index + "]" } }
+struct Step { let data: Data; let date: Date; let loc: String; let preview: String; let label: String }
+struct TimelineRow: Identifiable { enum Kind { case past, current, future }; let id: Int; let kind: Kind; let step: Step }
 func qspQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "''") + "'" }
 struct PresetEntry: Codable { var name: String; var index: String; var isKey: Bool; var num: Int; var str: String? }
 struct Preset: Codable, Identifiable { var id = UUID(); var name: String; var entries: [PresetEntry] }

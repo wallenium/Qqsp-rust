@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import Charts
 
 /// Variablen-Editor („Savegame-Editor“): alle Variablen des aktiven Spiels ansehen und ändern.
 /// Änderungen laufen als QSP-Code durch die Engine (Zeitreise macht sie rückgängig).
@@ -241,6 +242,14 @@ private struct WatchContent: View {
                     HStack {
                         Text("\(v.name)[\(v.index)]").font(.system(.callout, design: .monospaced))
                         Spacer()
+                        if let pts = model.series[v.key], pts.count >= 2 {   // Verlauf über die Züge
+                            Chart(Array(pts.enumerated()), id: \.offset) { p in
+                                LineMark(x: .value("Zug", p.offset), y: .value("Wert", p.element))
+                            }
+                            .chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
+                            .chartYScale(domain: .automatic(includesZero: false))
+                            .frame(width: 90, height: 26)
+                        }
                         VStack(alignment: .trailing, spacing: 0) {
                             Text(shown("\(v.num)\u{1}\(v.str ?? "")")).font(.system(.callout, design: .monospaced)).bold()
                             if let old = model.previousValues[v.key] {

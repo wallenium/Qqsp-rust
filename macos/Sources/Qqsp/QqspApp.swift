@@ -9,6 +9,7 @@ struct QqspApp: App {
         Window("Spielstände", id: "saves") { SavesView() }
         Window("Variablen-Editor", id: "vars") { VarsEditorView() }
         Window("Watchlist", id: "watch") { WatchView() }
+        Window("Zeitleiste", id: "steps") { StepsView() }
         Window("Debug", id: "debug") { DebugView() }
         Settings { OptionsView() }
     }
@@ -68,6 +69,7 @@ struct AppCommands: Commands {
             Button("Watchlist") { openWindow(id: "watch") }.keyboardShortcut("w", modifiers: [.command, .shift]).disabled(!loaded)
             Button("Variablen-Editor…") { openWindow(id: "vars") }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(!loaded)
             Divider()
+            Button("Zeitleiste…") { openWindow(id: "steps") }.keyboardShortcut("t", modifiers: [.command, .option]).disabled(!loaded)
             Button("Zug zurück") { m?.undo() }.keyboardShortcut("[").disabled(!(m?.canUndo ?? false))
             Button("Zug wiederholen") { m?.redo() }.keyboardShortcut("]").disabled(!(m?.canRedo ?? false))
         }

@@ -53,6 +53,9 @@ enum RichText {
         return out
     }
 
+    /// Text ohne Tags (für Beschriftungen).
+    static func plainText(_ s: String) -> String { String(make(s, size: 13).characters) }
+
     private static func color(in tag: String) -> Color? {
         guard let r = tag.range(of: #"color\s*=\s*["']?([^"' >]+)"#, options: [.regularExpression, .caseInsensitive]) else { return nil }
         let v = String(tag[r]).split(separator: "=", maxSplits: 1).last!.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")).lowercased()

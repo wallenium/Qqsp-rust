@@ -77,10 +77,10 @@ struct HTMLView: NSViewRepresentable {
     /// Wie Qqsp im HTML-Modus: Zeilenumbrüche des Spieltexts sind `<br>` (abschließender Umbruch entfällt),
     /// direkt nach `</center>` und `</table>` aber nicht.
     static func htmlBody(_ text: String) -> String {
-        var t = text
-        if t.hasSuffix("\r") { t.removeLast() }
+        // „\r\n“ ist in Swift ein einzelnes Zeichen: erst \r entfernen, dann den abschließenden Umbruch (wie Qqsp)
+        var t = text.replacingOccurrences(of: "\r", with: "")
         if t.hasSuffix("\n") { t.removeLast() }
-        t = t.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "<br>")
+        t = t.replacingOccurrences(of: "\n", with: "<br>")
         t = t.replacingOccurrences(of: "</center><br>", with: "</center>", options: .caseInsensitive)
         return t.replacingOccurrences(of: "</table><br>", with: "</table>", options: .caseInsensitive)
     }
