@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Variable editor: pin variables, highlight values changed since the last move (with the previous value), filters for pinned/changed
+- Watchlist window (⇧⌘W) for pinned variables
+- Presets: save pinned variables as a named preset and apply it in one move
+- Edit a save file: load a `.sav`, change variables, write back to the same file
+- Window size/position per game is now stored explicitly (more reliable than the autosave name)
 - Variable editor window (⇧⌘E): view, edit, create and delete all variables of the active game; undoable via Undo Move
 - Settings reorganized into tabs (General, Text, Colors, Sound, This Game) in macOS system-settings style
 - List icons: adjustable size, larger preview popover on hover

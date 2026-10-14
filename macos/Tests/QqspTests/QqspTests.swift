@@ -120,4 +120,22 @@ final class QqspTests: XCTestCase {
         m.reloadDebugVars()
         XCTAssertNil(m.debugVars.first { $0.name == "SCORE" })
     }
+
+    func testChangedVarsPinsAndPresets() throws {
+        let m = GameModel()
+        m.loadGame(url: try tempGame())
+        m.exec("gold = 5")
+        m.reloadDebugVars()
+        m.togglePin("GOLD[0]")
+        XCTAssertTrue(m.pins.contains("GOLD[0]"))
+        m.savePreset(name: "Reich")
+        m.exec("gold = 1")
+        m.reloadDebugVars()
+        m.applyPreset(m.presets[0])
+        m.reloadDebugVars()
+        XCTAssertEqual(m.debugVars.first { $0.name == "GOLD" }?.num, 5)
+        m.undo()   // ein Zug für das ganze Preset
+        m.reloadDebugVars()
+        XCTAssertEqual(m.debugVars.first { $0.name == "GOLD" }?.num, 1)
+    }
 }

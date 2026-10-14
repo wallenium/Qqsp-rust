@@ -36,6 +36,11 @@ final class GameModel {
     var canRedo = false
     /// Spielbezogene Darstellung (überschreibt die globalen Einstellungen)
     var look = Look()
+    /// Variablen-Beobachtung: angepinnt, seit dem letzten Zug geändert (+ vorheriger Wert), Presets
+    var pins: Set<String> = []
+    var changedVars: Set<String> = []
+    var previousValues: [String: String] = [:]
+    var presets: [Preset] = []
 
     // Verlauf, Spielstand-Slots, Debug
     var recent: [String] = UserDefaults.standard.stringArray(forKey: "recentGames") ?? []
@@ -60,6 +65,10 @@ final class GameModel {
     @ObservationIgnored private var history: [Data] = []
     @ObservationIgnored private var future: [Data] = []
     @ObservationIgnored private var activeSince: Date?
+    @ObservationIgnored private var lastValues: [String: String]?
+    @ObservationIgnored private var baseline: [String: String] = [:]
+    @ObservationIgnored private var baselineRev = -1
+    @ObservationIgnored private var restoredFrame = false
     @ObservationIgnored var gamePath = ""         // Verzeichnis der .qsp-Datei
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastMs = Date()
@@ -91,6 +100,11 @@ final class GameModel {
 
     init() {
         audio.model = self
+        for n in [NSWindow.didResizeNotification, NSWindow.didMoveNotification] {
+            NotificationCenter.default.addObserver(forName: n, object: nil, queue: .main) { [weak self] note in
+                if let w = note.object as? NSWindow, w === self?.window { self?.saveFrame() }
+            }
+        }
         // Beim Beenden bzw. Schließen des Fensters automatisch sichern, damit „Fortsetzen“ genau dort weitermacht.
         for n in [NSApplication.willTerminateNotification, NSWindow.willCloseNotification] {
             NotificationCenter.default.addObserver(forName: n, object: nil, queue: .main) { [weak self] note in
@@ -101,6 +115,19 @@ final class GameModel {
                 if note.name == NSWindow.willCloseNotification, Active.shared.model === self { Active.shared.model = nil }
             }
         }
+    }
+
+    // MARK: Fensterrahmen pro Spiel (selbst gespeichert, weil SwiftUI den Autosave-Rahmen überschreiben kann)
+    private func restoreFrame() {
+        guard let w = window, !gameFile.isEmpty, (w.tabGroup?.windows.count ?? 1) <= 1,
+              let f = defaults.string(forKey: "frame." + gameKey) else { restoredFrame = true; return }
+        let r = NSRectFromString(f)
+        guard r.width >= 400, NSScreen.screens.contains(where: { $0.visibleFrame.intersects(r) }) else { restoredFrame = true; return }
+        DispatchQueue.main.async { w.setFrame(r, display: true); self.restoredFrame = true }
+    }
+    private func saveFrame() {
+        guard let w = window, gameLoaded, restoredFrame, !w.styleMask.contains(.fullScreen) else { return }
+        defaults.set(NSStringFromRect(w.frame), forKey: "frame." + gameKey)
     }
 
     func autoSaveNow() {
@@ -141,11 +168,10 @@ final class GameModel {
         gameLoaded = true
         gameFile = path
         look = loadLook()
-        if let w = window {                       // Fenstergröße/-position pro Spiel merken
-            let name = "qqsp-game-" + gameKey
-            w.setFrameUsingName(name)
-            w.setFrameAutosaveName(name)
-        }
+        pins = Set(defaults.stringArray(forKey: "pins." + path) ?? [])
+        presets = defaults.data(forKey: "presets." + path).flatMap { try? JSONDecoder().decode([Preset].self, from: $0) } ?? []
+        lastValues = nil; baselineRev = -1; changedVars = []; previousValues = [:]
+        restoreFrame()
         history = []; future = []; syncUndo()
         defaults.set(Date(), forKey: "lastPlayed." + path)
         if window?.isKeyWindow == true { focusGained() }
@@ -266,6 +292,50 @@ final class GameModel {
             }
         }
         debugVars = out
+        trackChanges(out)
+    }
+
+    // MARK: Variablen: Änderungen seit dem letzten Zug, Pins, Presets
+    private func trackChanges(_ vars: [DebugVar]) {
+        var cur: [String: String] = [:]
+        for v in vars { cur[v.key] = "\(v.num)\u{1}\(v.str ?? "")" }
+        if baselineRev == -1 { baseline = cur; baselineRev = revision }
+        else if revision != baselineRev { baseline = lastValues ?? cur; baselineRev = revision }
+        lastValues = cur
+        var ch = Set<String>(); var prev: [String: String] = [:]
+        for (k, val) in cur where baseline[k] != val { ch.insert(k); prev[k] = baseline[k] ?? "" }
+        changedVars = ch; previousValues = prev
+    }
+    func togglePin(_ key: String) {
+        if pins.contains(key) { pins.remove(key) } else { pins.insert(key) }
+        defaults.set(Array(pins), forKey: "pins." + gameFile)
+    }
+    private func persistPresets() { if let d = try? JSONEncoder().encode(presets) { defaults.set(d, forKey: "presets." + gameFile) } }
+    /// Preset aus den aktuellen Werten aller angepinnten Variablen.
+    func savePreset(name: String) {
+        let entries = debugVars.filter { pins.contains($0.key) }.map { PresetEntry(name: $0.name, index: $0.index, isKey: $0.isKey, num: $0.num, str: $0.str) }
+        guard !entries.isEmpty, !name.isEmpty else { return }
+        presets.removeAll { $0.name == name }
+        presets.append(Preset(name: name, entries: entries))
+        persistPresets()
+    }
+    func deletePreset(_ p: Preset) { presets.removeAll { $0.id == p.id }; persistPresets() }
+    func applyPreset(_ p: Preset) {
+        var codes: [String] = []
+        for e in p.entries {
+            let idx = e.isKey ? qspQuote(e.index) : e.index
+            codes.append("\(e.name)[\(idx)] = \(e.num)")
+            if let s = e.str, !s.isEmpty { codes.append("$\(e.name)[\(idx)] = \(qspQuote(s))") }
+        }
+        execBatch(codes)
+        reloadDebugVars()
+    }
+    /// Mehrere Codezeilen als ein Zug (eine Zeitreise-Stufe).
+    func execBatch(_ codes: [String]) { beginAction(); for c in codes { _ = core.exec(c) } }
+    /// Spielstand-Datei in das aktive Spiel laden (für den Editor); false bei Fehler.
+    func loadSavedFile(_ path: String) -> Bool {
+        if core.open(saved: path) { lastSave = path; return true }
+        report(); return false
     }
 
     // MARK: Aktionen / Eingabe
@@ -463,4 +533,7 @@ final class Audio {
 struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date; var preview = "" }
 /// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
 struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int?; var statusFont: Int? }
-struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String?; var isKey = false }
+struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String?; var isKey = false; var key: String { name + "[" + index + "]" } }
+func qspQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "''") + "'" }
+struct PresetEntry: Codable { var name: String; var index: String; var isKey: Bool; var num: Int; var str: String? }
+struct Preset: Codable, Identifiable { var id = UUID(); var name: String; var entries: [PresetEntry] }

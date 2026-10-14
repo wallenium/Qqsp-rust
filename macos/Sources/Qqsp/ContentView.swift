@@ -109,18 +109,7 @@ struct SplitHandle: View {
             .padding(h ? .vertical : .horizontal, 40)
             .frame(width: h ? 4 : nil, height: h ? nil : 4)
             .contentShape(Rectangle().inset(by: -5))
-            .onHover { h in
-            hover = h
-            previewTask?.cancel()
-            if h, item.image != nil {            // Bildvorschau erst nach kurzer Verweildauer
-                previewTask = Task { try? await Task.sleep(for: .milliseconds(600)); if !Task.isCancelled { preview = true } }
-            } else { preview = false }
-        }
-        .popover(isPresented: $preview, arrowEdge: .trailing) {
-            if let p = item.image, let img = NSImage(contentsOfFile: model.resolve(p)) {
-                Image(nsImage: img).resizable().scaledToFit().frame(maxWidth: 320, maxHeight: 320).padding(8)
-            }
-        }
+            .onHover { hover = $0 }
             .pointerStyle(h ? .columnResize : .rowResize)
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { g in
@@ -274,7 +263,18 @@ struct ListRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .onHover { h in
+            hover = h
+            previewTask?.cancel()
+            if h, item.image != nil {            // Bildvorschau erst nach kurzer Verweildauer
+                previewTask = Task { try? await Task.sleep(for: .milliseconds(600)); if !Task.isCancelled { preview = true } }
+            } else { preview = false }
+        }
+        .popover(isPresented: $preview, arrowEdge: .trailing) {
+            if let p = item.image, let img = NSImage(contentsOfFile: model.resolve(p)) {
+                Image(nsImage: img).resizable().scaledToFit().frame(maxWidth: 320, maxHeight: 320).padding(8)
+            }
+        }
         .animation(.easeOut(duration: 0.12), value: hover)
     }
 
