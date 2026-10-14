@@ -3,3 +3,5 @@ target/
 macos/.build/
 macos/lib/
 macos/Qqsp.app/
+macos/Qqsp.dmg
+__pycache__/

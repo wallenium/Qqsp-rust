@@ -46,8 +46,12 @@ final class Core {
     func open(saved path: String) -> Bool { qsp_open_saved_game(e, path, 1) != 0 }
     func setInput(_ s: String) { qsp_set_input_text(e, s) }
     var errorText: String { take(qsp_error_description(e)) }
-    var version: String { take(qsp_version()) }
+    var version: String { Core.versionString }
+    static var versionString: String { take(qsp_version()) }
     var fullRefreshCount: Int { Int(qsp_full_refresh_count(e)) }
+    func varsDump() -> String { take(qsp_vars_dump(e)) }
+    func curLoc() -> String { take(qsp_cur_loc(e)) }
+    func enableDebug(_ on: Bool) { qsp_enable_debug(e, on ? 1 : 0) }
     func visible(_ w: Int) -> Bool { qsp_window_visible(e, Int32(w)) != 0 }
 
     func mainDesc() -> (String, Bool) { var c: Int32 = 0; let s = take(qsp_main_desc(e, &c)); return (s, c != 0) }

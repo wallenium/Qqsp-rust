@@ -68,6 +68,7 @@ char *qsp_cur_loc(QspEngine *);
 char *qsp_qst_full_path(QspEngine *);
 int qsp_full_refresh_count(QspEngine *);
 int qsp_var_values(QspEngine *, const char *name, int ind, int *num_val, char **str_val);
+char *qsp_vars_dump(QspEngine *);
 int qsp_var_num(QspEngine *, const char *name);
 int qsp_last_error_num(QspEngine *);
 char *qsp_error_description(QspEngine *);

@@ -3,7 +3,7 @@ import SwiftUI
 /// Anordnung wie im Original-Qqsp: links Zusatzbeschreibung + Aktionen, Mitte Hauptbeschreibung + Eingabe, rechts Objekte.
 struct ContentView: View {
     @Bindable var model: GameModel
-    @AppStorage("showHotkeys") private var showHotkeys = false
+    @AppStorage(Key.hotkeys) private var showHotkeys = false
     @FocusState private var inputFocused: Bool
 
     // Breiten/Höhe der Bereiche – bleiben über Neustarts erhalten
@@ -122,13 +122,16 @@ struct SplitHandle: View {
 
 /// Fenster mit Titelzeile (wie die Dock-Widgets im Original) auf einer Glasfläche.
 struct Panel<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder var content: Content
+    @AppStorage(Key.captions) private var captions = true
     var body: some View {
         VStack(spacing: 0) {
-            Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity).padding(.vertical, 6)
-            Divider().opacity(0.5)
+            if captions {
+                Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 6)
+                Divider().opacity(0.5)
+            }
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .clipShape(.rect(cornerRadius: 18))
@@ -139,9 +142,11 @@ struct Panel<Content: View>: View {
 
 struct Backdrop: View {
     var model: GameModel
+    @AppStorage(Key.useBack) private var useBack = false
+    @AppStorage(Key.back) private var backHex = "#FFFFFF"
     var body: some View {
         ZStack {
-            (model.bcolor ?? Color(nsColor: .windowBackgroundColor))
+            (useBack ? Color(hex: backHex) : (model.bcolor ?? Color(nsColor: .windowBackgroundColor)))
             if let p = model.backImage, let img = NSImage(contentsOfFile: p) {
                 Image(nsImage: img).resizable().scaledToFill().opacity(0.9)
             }
@@ -154,7 +159,6 @@ struct DescriptionCard: View {
     var model: GameModel
     var body: some View {
         HTMLView(html: model.mainDesc, model: model, asHTML: true)
-            .id(model.plainHTML)
     }
 }
 
@@ -193,17 +197,32 @@ struct ListCard: View {
     var model: GameModel
     var onSelect: (Int) -> Void
     var onActivate: ((Int) -> Void)? = nil
+    var onMove: ((Int) -> Void)? = nil
+    var onReturn: (() -> Void)? = nil
+    @FocusState private var focused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 2) {
-                ForEach(items) { it in
-                    ListRow(item: it, selected: it.id == selected, hotkeys: hotkeys, centered: centered, model: model) {
-                        onSelect(it.id); onActivate?(it.id)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(items) { it in
+                        ListRow(item: it, selected: it.id == selected, hotkeys: hotkeys, centered: centered, model: model) {
+                            focused = true
+                            onSelect(it.id); onActivate?(it.id)
+                        }
+                        .id(it.id)
                     }
                 }
+                .padding(6)
             }
-            .padding(6)
+            // Pfeiltasten wählen, Return führt aus (nach Klick in die Liste oder per Tab)
+            .focusable()
+            .focusEffectDisabled()
+            .focused($focused)
+            .onKeyPress(.upArrow) { onMove?(-1); return onMove == nil ? .ignored : .handled }
+            .onKeyPress(.downArrow) { onMove?(1); return onMove == nil ? .ignored : .handled }
+            .onKeyPress(.return) { onReturn?(); return onReturn == nil ? .ignored : .handled }
+            .onChange(of: selected) { _, new in if new >= 0 { withAnimation { proxy.scrollTo(new) } } }
         }
     }
 }
@@ -250,14 +269,23 @@ struct ActionsCard: View {
     var body: some View {
         // Einfachklick wählt, Doppelklick führt aus – wie in Qqsp
         ListCard(items: model.actions, selected: model.selAction, hotkeys: hotkeys, model: model,
-                 onSelect: { model.choose(action: $0) }, onActivate: { _ in model.core.runAction() })
+                 onSelect: { model.choose(action: $0) }, onActivate: { _ in model.core.runAction() },
+                 onMove: { d in
+                     let n = model.actions.count
+                     if n > 0 { model.choose(action: min(max(model.selAction + d, 0), n - 1)) }
+                 },
+                 onReturn: { model.core.runAction() })
     }
 }
 struct ObjectsCard: View {
     var model: GameModel
     var body: some View {
         ListCard(items: model.objects, selected: model.selObject, centered: true, model: model,
-                 onSelect: { model.choose(object: $0) })
+                 onSelect: { model.choose(object: $0) },
+                 onMove: { d in
+                     let n = model.objects.count
+                     if n > 0 { model.choose(object: min(max(model.selObject + d, 0), n - 1)) }
+                 })
     }
 }
 struct StatusCard: View {

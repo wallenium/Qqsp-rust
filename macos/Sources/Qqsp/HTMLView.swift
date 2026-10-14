@@ -1,13 +1,29 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
-/// Zeigt Beschreibung/Status/Listen als HTML. Verlinkungen `exec:` führen QSP-Code aus,
+/// Zeigt Beschreibung/Status als HTML. Verlinkungen `exec:` führen QSP-Code aus,
 /// Bilder werden über das Schema `qspfile://` aus dem Spielverzeichnis geladen (ohne Groß-/Kleinschreibung).
+/// Alle Darstellungs-Einstellungen sind hier direkt per @AppStorage eingebunden, damit die Ansicht sofort reagiert.
 struct HTMLView: NSViewRepresentable {
     var html: String
     var model: GameModel
     var asHTML: Bool
     var scroll: Bool = true
+
+    @Environment(\.colorScheme) private var scheme
+    @AppStorage(Key.plainHTML) private var plainHTML = false
+    @AppStorage(Key.autoscroll) private var autoScroll = true
+    @AppStorage(Key.useGameFont) private var useGameFont = true
+    @AppStorage(Key.fontSize) private var userFontSize = 16
+    @AppStorage(Key.useFontName) private var useFontName = false
+    @AppStorage(Key.fontName) private var userFontName = "Helvetica Neue"
+    @AppStorage(Key.zoom) private var zoom = 1.0
+    @AppStorage(Key.darkGames) private var darkGames = false
+    @AppStorage(Key.useFore) private var useFore = false
+    @AppStorage(Key.fore) private var foreHex = "#000000"
+    @AppStorage(Key.useLink) private var useLink = false
+    @AppStorage(Key.link) private var linkHex = "#0A60FF"
 
     func makeCoordinator() -> Coordinator { Coordinator(model) }
     func makeNSView(context: Context) -> WKWebView {
@@ -19,33 +35,38 @@ struct HTMLView: NSViewRepresentable {
         return v
     }
     func updateNSView(_ v: WKWebView, context: Context) {
-        let page = Self.page(html, model: model, asHTML: asHTML, scroll: scroll)
+        let page = makePage()
         if context.coordinator.last != page {
             context.coordinator.last = page
             v.loadHTMLString(page, baseURL: URL(string: "qspfile://game/"))
         }
     }
 
-    static func css(_ m: GameModel) -> String {
-        func hex(_ c: Color?) -> String? {
-            guard let c, let n = NSColor(c).usingColorSpace(.sRGB) else { return nil }
-            return String(format: "#%02X%02X%02X", Int(n.redComponent * 255), Int(n.greenComponent * 255), Int(n.blueComponent * 255))
-        }
-        var s = "html{color-scheme:light dark} body{font:\(m.useGameFont ? (m.fontSize ?? m.userFontSize) : m.userFontSize)px -apple-system,sans-serif;"
-        if m.useGameFont, let f = m.fontName { s += "font-family:'\(f)',-apple-system,sans-serif;" }
-        if let c = hex(m.fcolor) { s += "color:\(c);" }
+    private func hex(_ c: Color?) -> String? { c.map { $0.hexString } }
+
+    private func css() -> String {
+        let m = model
+        let size = useGameFont ? (m.fontSize ?? userFontSize) : userFontSize
+        var s = "html{color-scheme:light dark;zoom:\(zoom)} body{font-size:\(size)px;font-family:-apple-system,sans-serif;"
+        if useFontName { s += "font-family:'\(userFontName)',-apple-system,sans-serif;" }
+        else if useGameFont, let f = m.fontName { s += "font-family:'\(f)',-apple-system,sans-serif;" }
+        if useFore { s += "color:\(foreHex);" } else if let c = hex(m.fcolor) { s += "color:\(c);" }
         s += "margin:12px;word-wrap:break-word} a{"
-        if let c = hex(m.lcolor) { s += "color:\(c);" }
+        if useLink { s += "color:\(linkHex);" } else if let c = hex(m.lcolor) { s += "color:\(c);" }
         s += "} img{max-width:100%}"
+        // Dunkelmodus für helle Spielseiten: Seite invertieren, Bilder/Videos wieder zurück
+        if darkGames && scheme == .dark {
+            s += "html{filter:invert(1) hue-rotate(180deg)} img,video,canvas{filter:invert(1) hue-rotate(180deg)}"
+        }
         return s
     }
-    static func esc(_ s: String) -> String {
+    private static func esc(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
-    static func page(_ text: String, model m: GameModel, asHTML: Bool, scroll: Bool) -> String {
-        let body = (m.useHTML && !m.plainHTML && asHTML) ? text : "<div style='white-space:pre-wrap'>\(esc(text))</div>"
-        let auto = scroll && m.autoScroll && !m.disableScroll ? "<script>window.scrollTo(0,document.body.scrollHeight)</script>" : ""
-        return "<!doctype html><meta charset=utf-8><style>\(css(m))</style><body>\(body)\(auto)"
+    private func makePage() -> String {
+        let body = (model.useHTML && !plainHTML && asHTML) ? html : "<div style='white-space:pre-wrap'>\(Self.esc(html))</div>"
+        let auto = scroll && autoScroll && !model.disableScroll ? "<script>window.scrollTo(0,document.body.scrollHeight)</script>" : ""
+        return "<!doctype html><meta charset=utf-8><style>\(css())</style><body>\(body)\(auto)"
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKURLSchemeHandler {
@@ -77,4 +98,3 @@ struct HTMLView: NSViewRepresentable {
         func webView(_ w: WKWebView, stop task: WKURLSchemeTask) {}
     }
 }
-import UniformTypeIdentifiers

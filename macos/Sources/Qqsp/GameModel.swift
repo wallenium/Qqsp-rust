@@ -33,6 +33,12 @@ final class GameModel {
     var revision = 0                          // erhöht sich bei jedem Hauptfenster-Update
     var gameLoaded = false
 
+    // Verlauf, Spielstand-Slots, Debug
+    var recent: [String] = UserDefaults.standard.stringArray(forKey: "recentGames") ?? []
+    var slots: [SaveSlot] = []
+    var debugVars: [DebugVar] = []
+    var debugLog: [String] = []
+
     // Einstellungen (persistiert)
     @ObservationIgnored @AppStorage("showHotkeys") var showHotkeys = false
     @ObservationIgnored @AppStorage("plainHTML") var plainHTML = false
@@ -45,6 +51,7 @@ final class GameModel {
     var menuItems: [(String, String?)] = []
     @ObservationIgnored lazy var core = Core(model: self)
     @ObservationIgnored let audio = Audio()
+    @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored var gamePath = ""         // Verzeichnis der .qsp-Datei
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastMs = Date()
@@ -69,8 +76,9 @@ final class GameModel {
         for n in [NSApplication.willTerminateNotification, NSWindow.willCloseNotification] {
             NotificationCenter.default.addObserver(forName: n, object: nil, queue: .main) { [weak self] note in
                 // Dialoge/Panels (NSPanel) ignorieren – nur das Hauptfenster bzw. App-Ende löst die Sicherung aus
-                if let w = note.object as? NSWindow, !w.canBecomeMain { return }
+                if let w = note.object as? NSWindow, w !== self?.window { return }   // nur das eigene Fenster bzw. App-Ende
                 self?.autoSaveNow()
+                if note.name == NSWindow.willCloseNotification, Active.shared.model === self { Active.shared.model = nil }
             }
         }
     }
@@ -85,11 +93,11 @@ final class GameModel {
         guard !gameLoaded, let p = defaults.string(forKey: "lastGamePath"), FileManager.default.fileExists(atPath: p) else { return }
         let url = URL(fileURLWithPath: p)
         let a = NSAlert()
-        a.messageText = "Mit „\(url.deletingPathExtension().lastPathComponent)“ fortsetzen?"
-        a.informativeText = "Das zuletzt gespielte Spiel wird geöffnet und der neueste Spielstand geladen."
-        a.addButton(withTitle: "Fortsetzen")
-        a.addButton(withTitle: "Neu beginnen")
-        a.addButton(withTitle: "Anderes Spiel…")
+        a.messageText = String(format: NSLocalizedString("Mit „%@“ fortsetzen?", comment: ""), url.deletingPathExtension().lastPathComponent)
+        a.informativeText = NSLocalizedString("Das zuletzt gespielte Spiel wird geöffnet und der neueste Spielstand geladen.", comment: "")
+        a.addButton(withTitle: NSLocalizedString("Fortsetzen", comment: ""))
+        a.addButton(withTitle: NSLocalizedString("Neu beginnen", comment: ""))
+        a.addButton(withTitle: NSLocalizedString("Anderes Spiel…", comment: ""))
         switch a.runModal() {
         case .alertFirstButtonReturn:
             openGame(url: url)
@@ -100,7 +108,11 @@ final class GameModel {
     }
 
     // MARK: Spiel öffnen
+    /// Lädt in dieses Fenster, wenn es leer ist, sonst in einen neuen Tab.
     func openGame(url: URL) {
+        if gameLoaded { Active.shared.newTab(loading: url) } else { loadGame(url: url) }
+    }
+    func loadGame(url: URL) {
         let path = url.path
         guard core.load(path: path) else { report(); return }
         gamePath = url.deletingLastPathComponent().path + "/"
@@ -108,6 +120,7 @@ final class GameModel {
         title = url.deletingPathExtension().lastPathComponent
         gameLoaded = true
         defaults.set(path, forKey: "lastGamePath")
+        addRecent(path)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         if !core.restart() { report() }
     }
@@ -146,6 +159,71 @@ final class GameModel {
     func quickLoad() { if FileManager.default.fileExists(atPath: quickSave) { openSaved(path: quickSave) } }
     func quickSaveNow() { saveGame(path: quickSave) }
 
+    // MARK: Verlauf
+    func addRecent(_ p: String) {
+        recent.removeAll { $0 == p }
+        recent.insert(p, at: 0)
+        if recent.count > 10 { recent.removeLast(recent.count - 10) }
+        defaults.set(recent, forKey: "recentGames")
+    }
+    func clearRecent() { recent = []; defaults.set([String](), forKey: "recentGames") }
+    var existingRecent: [String] { recent.filter { FileManager.default.fileExists(atPath: $0) } }
+
+    // MARK: Spielstand-Slots (pro Spiel: Ordner mit „Datum__Ort.sav“, dazu Schnell- und Autospeicher)
+    private var slotDir: String {
+        let d = supportDir + "/slots-\(gameKey)"
+        try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true)
+        return d
+    }
+    func newSlot() {
+        guard gameLoaded, !noSave else { return }
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
+        let loc = core.curLoc().replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let path = slotDir + "/\(f.string(from: Date()))__\(loc).sav"
+        if core.save(path: path) { lastSave = path; refreshSlots() } else { report() }
+    }
+    func refreshSlots() {
+        guard gameLoaded else { slots = []; return }
+        let fm = FileManager.default
+        func date(_ p: String) -> Date? { (try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date }
+        var out: [SaveSlot] = []
+        for (path, title, kind) in [(quickSave, NSLocalizedString("Schnellspeicher", comment: ""), NSLocalizedString("Schnell", comment: "")), (autoSave, NSLocalizedString("Automatisch (beim Beenden)", comment: ""), NSLocalizedString("Auto", comment: ""))] {
+            if let d = date(path) { out.append(SaveSlot(id: path, title: title, kind: kind, date: d)) }
+        }
+        for f in (try? fm.contentsOfDirectory(atPath: slotDir)) ?? [] where f.hasSuffix(".sav") {
+            let p = slotDir + "/" + f
+            let loc = f.components(separatedBy: "__").dropFirst().joined(separator: "__").replacingOccurrences(of: ".sav", with: "")
+            out.append(SaveSlot(id: p, title: loc.isEmpty ? NSLocalizedString("Spielstand", comment: "") : loc, kind: NSLocalizedString("Slot", comment: ""), date: date(p) ?? .distantPast))
+        }
+        slots = out.sorted { $0.date > $1.date }
+    }
+    func loadSlot(_ s: SaveSlot) { openSaved(path: s.id) }
+    func deleteSlot(_ s: SaveSlot) {
+        try? FileManager.default.removeItem(atPath: s.id)
+        if lastSave == s.id { lastSave = nil }
+        refreshSlots()
+    }
+
+    // MARK: Debug
+    func reloadDebugVars() {
+        guard gameLoaded, let d = core.varsDump().data(using: .utf8),
+              let arr = try? JSONSerialization.jsonObject(with: d) as? [[String: Any]] else { debugVars = []; return }
+        var out: [DebugVar] = []
+        for e in arr {
+            let name = e["n"] as? String ?? ""
+            let vals = e["v"] as? [[Any]] ?? []
+            let keys = e["k"] as? [String: Int] ?? [:]
+            let inv = Dictionary(keys.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
+            for (i, v) in vals.enumerated() {
+                let num = (v.first as? NSNumber)?.intValue ?? 0
+                let str = v.count > 1 ? v[1] as? String : nil
+                if num == 0 && (str ?? "").isEmpty { continue }
+                out.append(DebugVar(name: name, index: inv[i] ?? String(i), num: num, str: str))
+            }
+        }
+        debugVars = out
+    }
+
     // MARK: Aktionen / Eingabe
     func choose(action i: Int) { core.selectAction(i) }
     func run(action i: Int) { core.selectAction(i); core.runAction() }
@@ -179,7 +257,10 @@ final class GameModel {
     }
     func showImage(_ p: String?) { imagePath = p.flatMap { $0.isEmpty ? nil : resolve($0) } }
     func setWindow(_ w: Int, _ on: Bool) { if (0..<4).contains(w) { show[w] = on } }
-    func debug(_ s: String) { NSLog("QSP debug: %@", s) }
+    func debug(_ s: String) {
+        debugLog.append(s)
+        if debugLog.count > 500 { debugLog.removeFirst(debugLog.count - 500) }
+    }
     func system(_ cmd: String) { NSLog("QSP system ignoriert: %@", cmd) }   // wie Qqsp: kein Shell-Zugriff
     func msSinceLast() -> Int { let n = Date(); defer { lastMs = n }; return Int(n.timeIntervalSince(lastMs) * 1000) }
 
@@ -192,7 +273,7 @@ final class GameModel {
     func message(_ s: String) {
         let a = NSAlert()
         a.messageText = Self.plain(s)
-        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: NSLocalizedString("OK", comment: ""))
         a.runModal()
     }
     func inputBox(_ prompt: String) -> String? {
@@ -200,8 +281,8 @@ final class GameModel {
         a.messageText = Self.plain(prompt)
         let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
         a.accessoryView = f
-        a.addButton(withTitle: "OK")
-        a.addButton(withTitle: NSLocalizedString("Cancel", comment: ""))
+        a.addButton(withTitle: NSLocalizedString("OK", comment: ""))
+        a.addButton(withTitle: NSLocalizedString("Abbrechen", comment: ""))
         a.window.initialFirstResponder = f
         return a.runModal() == .alertFirstButtonReturn ? f.stringValue : ""
     }
@@ -273,3 +354,7 @@ final class Audio {
     }
     func applyMute() { players.values.forEach { $0.volume = (model?.muted ?? false) ? 0 : Float((model?.volume ?? 100) / 100) } }
 }
+
+
+struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date }
+struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String? }

@@ -321,3 +321,8 @@ pub unsafe extern "C" fn qsp_var_values(e: E, name: *const c_char, ind: c_int, n
         None => 0,
     }
 }
+/// Alle belegten Variablen als JSON-Text (siehe `Engine::vars_dump_json`), mit `qsp_string_free` freigeben.
+#[no_mangle]
+pub unsafe extern "C" fn qsp_vars_dump(e: E) -> *mut c_char {
+    out(&(*e).vars_dump_json())
+}

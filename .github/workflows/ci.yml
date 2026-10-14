@@ -1,0 +1,35 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Unit-Tests
+        run: cargo test --all-targets
+      - name: Differenztest gegen die originale C-Engine
+        run: |
+          git clone --depth 1 https://github.com/Sonnix1/Qqsp.git "$RUNNER_TEMP/Qqsp-ref"
+          QQSP_SRC="$RUNNER_TEMP/Qqsp-ref" python3 tests/diff/run.py --fuzz 500
+
+  macos:
+    needs: rust
+    # Liquid Glass braucht das macOS-26-SDK (Xcode 26). Falls der Runner-Name bei GitHub anders heißt, hier anpassen.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Engine bauen (universal)
+        run: ./macos/build-core.sh
+      - name: App bauen
+        run: ./macos/make-app.sh
+      - name: Archivieren
+        run: ditto -c -k --keepParent macos/Qqsp.app Qqsp.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Qqsp-macOS
+          path: Qqsp.app.zip

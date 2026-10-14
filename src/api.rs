@@ -184,6 +184,62 @@ impl Engine {
         let vi = self.var_ref(name, false).ok()?;
         self.vars[vi].data.values.get(ind).map(|v| (v.num, v.str.clone()))
     }
+    /// Alle belegten Variablen als JSON (für das Debug-Fenster):
+    /// `[{"n":"NAME","v":[[num,"text"|null],...],"k":{"schluessel":index,...}},...]`, nach Namen sortiert.
+    pub fn vars_dump_json(&self) -> String {
+        fn esc(s: &str, out: &mut String) {
+            out.push('"');
+            for c in s.chars() {
+                match c {
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+                    c => out.push(c),
+                }
+            }
+            out.push('"');
+        }
+        let mut slots: Vec<&crate::vars::Slot> = self
+            .vars
+            .iter()
+            .filter(|s| s.name.is_some() && (!s.data.values.is_empty() || !s.data.indices.is_empty()))
+            .collect();
+        slots.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut o = String::from("[");
+        for (i, s) in slots.iter().enumerate() {
+            if i > 0 {
+                o.push(',');
+            }
+            o.push_str("{\"n\":");
+            esc(s.name.as_deref().unwrap_or(""), &mut o);
+            o.push_str(",\"v\":[");
+            for (j, v) in s.data.values.iter().enumerate() {
+                if j > 0 {
+                    o.push(',');
+                }
+                o.push_str(&format!("[{},", v.num));
+                match &v.str {
+                    Some(t) => esc(t, &mut o),
+                    None => o.push_str("null"),
+                }
+                o.push(']');
+            }
+            o.push_str("],\"k\":{");
+            for (j, k) in s.data.indices.iter().enumerate() {
+                if j > 0 {
+                    o.push(',');
+                }
+                esc(&k.str, &mut o);
+                o.push_str(&format!(":{}", k.index));
+            }
+            o.push_str("}}");
+        }
+        o.push(']');
+        o
+    }
     pub fn var_num(&mut self, name: &str) -> i32 {
         self.get_var_num(name)
     }

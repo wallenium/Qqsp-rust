@@ -5,6 +5,9 @@ fn out(s: &str) -> String {
 }
 struct H;
 impl Host for H {
+    fn show_window(&self, _e: &mut Engine, w: Win, on: bool) {
+        println!("WIN:{}:{}", w as i32, on as i32);
+    }
     fn show_message(&self, _e: &mut Engine, t: &str) {
         println!("MSG:{}", out(t));
     }

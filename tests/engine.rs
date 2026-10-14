@@ -105,3 +105,17 @@ fn errors_are_reported() {
     assert!(!e.restart_game(true));
     assert_eq!(e.last_error().num, 100);
 }
+
+#[test]
+fn vars_dump_is_valid_json_shape() {
+    let h = Rc::new(Rec::default());
+    let mut e = Engine::new(h);
+    let data = build(&[("start", "x=5\n$s='a\"b\\c'\na[2]=7\n$k['key']='v'", &[])]);
+    assert!(e.load_game_world_from_data(&data, "t.qsp"));
+    assert!(e.restart_game(true));
+    let j = e.vars_dump_json();
+    assert!(j.starts_with('[') && j.ends_with(']'), "{j}");
+    assert!(j.contains("\"n\":\"X\""), "{j}");
+    assert!(j.contains("\"key\":0") || j.contains("\"KEY\":0"), "{j}");
+    assert!(j.contains("a\\\"b\\\\c"), "{j}");
+}
