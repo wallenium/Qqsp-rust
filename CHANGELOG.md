@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- Actions/Objects lists render bold, italic, underline and font colors from the game's HTML
+- HTML mode now converts newlines to `<br>` like the original Qqsp (fixes broken table layouts)
+- Automatic contrast fix: text colors of games below 4.5:1 contrast against the background are lightened/darkened (Settings ▸ Colors)
+- Separate font sizes for the Actions and Objects lists (global and per game)
+- Game info: author/description read from info/readme files in the game folder (Game ▸ Game Info…, library tooltips)
+- `qqsp://` URL commands for Shortcuts/scripts: `open?path=`, `action?n=`, `quicksave`, `quickload`, `undo`, `redo`
+- `.sav` files open in the active game; document icons for `.qsp`/`.gam`/`.sav`
+- Optional sync folder for quick/auto/slot saves (e.g. iCloud Drive), device-independent file names
+- Robustness: fuzz tests with corrupted game files, savegames and random code (no panics in 1.2M cases)
 - Undo/redo of moves (⌘[ / ⌘]) via in-memory snapshots, up to 100 steps
 - Game library on the start screen: recent games with cover, last played, play time, one-click resume
 - Save previews: the last text of the game is shown next to each save

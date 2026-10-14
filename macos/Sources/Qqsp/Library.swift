@@ -10,6 +10,9 @@ struct LibEntry: Identifiable {
     let playtime: TimeInterval
     let resumeSave: String?
 
+    let info: String?
+    let author: String?
+
     init(path: String) {
         let d = UserDefaults.standard
         self.path = path
@@ -17,20 +20,39 @@ struct LibEntry: Identifiable {
         playtime = d.double(forKey: "playtime." + path)
         let s = d.string(forKey: "resumeSave." + path)
         resumeSave = s.flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
-        // Titelbild: Bilddatei im Spielordner mit typischem Namen
-        let dir = (path as NSString).deletingLastPathComponent
-        let names = ["cover", "title", "logo", "icon", "splash", "intro"]
-        let exts = ["png", "jpg", "jpeg", "gif", "webp"]
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
-        cover = files.first { f in
-            let u = f as NSString
-            return names.contains(u.deletingPathExtension.lowercased()) && exts.contains(u.pathExtension.lowercased())
-        }.map { dir + "/" + $0 }
+        let i = GameInfo.read(forFile: path)
+        cover = i.cover; info = i.info; author = i.author
     }
 
     var playtimeText: String {
         let m = Int(playtime / 60)
         return m < 60 ? "\(m) min" : String(format: "%d h %02d min", m / 60, m % 60)
+    }
+}
+
+/// Metadaten aus dem Spielordner: Titelbild, Beschreibung (info/readme/about/description .txt/.md) und „Autor:“-Zeile.
+enum GameInfo {
+    static func read(forFile path: String) -> (cover: String?, info: String?, author: String?) {
+        let dir = (path as NSString).deletingLastPathComponent
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        func find(_ names: [String], _ exts: [String]) -> String? {
+            files.first { f in
+                let u = f as NSString
+                return names.contains(u.deletingPathExtension.lowercased()) && exts.contains(u.pathExtension.lowercased())
+            }.map { dir + "/" + $0 }
+        }
+        let cover = find(["cover", "title", "logo", "icon", "splash", "intro"], ["png", "jpg", "jpeg", "gif", "webp"])
+        var info: String?
+        var author: String?
+        if let f = find(["info", "readme", "about", "description", "beschreibung", "autor", "author"], ["txt", "md"]),
+           let t = try? String(contentsOfFile: f, encoding: .utf8) {
+            info = String(t.trimmingCharacters(in: .whitespacesAndNewlines).prefix(600))
+            if let r = t.range(of: #"(?im)^\s*(autor|author|von|by)\s*[:：]\s*(.+)$"#, options: .regularExpression) {
+                let line = String(t[r])
+                author = line.split(separator: ":", maxSplits: 1).last.map { $0.trimmingCharacters(in: .whitespaces) }
+            }
+        }
+        return (cover, info, author)
     }
 }
 
@@ -85,10 +107,12 @@ struct Library: View {
         }
         .padding(10)
         .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .help(e.info ?? e.title)
     }
 
     private func sub(_ e: LibEntry) -> String {
         var parts: [String] = []
+        if let a = e.author { parts.append(a) }
         if let d = e.lastPlayed { parts.append(d.formatted(date: .abbreviated, time: .omitted)) }
         if e.playtime >= 60 { parts.append(e.playtimeText) }
         return parts.joined(separator: " · ")

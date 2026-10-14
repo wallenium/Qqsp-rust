@@ -20,6 +20,9 @@ struct HTMLView: NSViewRepresentable {
     @AppStorage(Key.fontName) private var userFontName = "Helvetica Neue"
     @AppStorage(Key.zoom) private var zoom = 1.0
     @AppStorage(Key.darkGames) private var darkGames = false
+    @AppStorage(Key.autoContrast) private var autoContrast = true
+    @AppStorage(Key.useBack) private var useBack = false
+    @AppStorage(Key.back) private var backHex = "#FFFFFF"
     @AppStorage(Key.useFore) private var useFore = false
     @AppStorage(Key.fore) private var foreHex = "#000000"
     @AppStorage(Key.useLink) private var useLink = false
@@ -65,10 +68,46 @@ struct HTMLView: NSViewRepresentable {
     private static func esc(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
     }
+    /// Wie Qqsp im HTML-Modus: Zeilenumbrüche des Spieltexts sind `<br>` (abschließender Umbruch entfällt),
+    /// direkt nach `</center>` und `</table>` aber nicht.
+    static func htmlBody(_ text: String) -> String {
+        var t = text
+        if t.hasSuffix("\r") { t.removeLast() }
+        if t.hasSuffix("\n") { t.removeLast() }
+        t = t.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "<br>")
+        t = t.replacingOccurrences(of: "</center><br>", with: "</center>", options: .caseInsensitive)
+        return t.replacingOccurrences(of: "</table><br>", with: "</table>", options: .caseInsensitive)
+    }
     private func makePage() -> String {
-        let body = (model.useHTML && !plainHTML && asHTML) ? html : "<div style='white-space:pre-wrap'>\(Self.esc(html))</div>"
+        let body = (model.useHTML && !plainHTML && asHTML) ? Self.htmlBody(html) : "<div style='white-space:pre-wrap'>\(Self.esc(html))</div>"
         let auto = scroll && autoScroll && !model.disableScroll ? "<script>window.scrollTo(0,document.body.scrollHeight)</script>" : ""
-        return "<!doctype html><meta charset=utf-8><style>\(css())</style><body>\(body)\(auto)"
+        return "<!doctype html><meta charset=utf-8><style>\(css())</style><body>\(body)\(contrastScript())\(auto)"
+    }
+
+    /// Hintergrundfarbe unter dem Text (Override, Spielfarbe oder Fensterfarbe) als [r,g,b].
+    private func backgroundRGB() -> [Int] {
+        let h = useBack ? backHex : (hex(model.bcolor) ?? (scheme == .dark ? "#1E1E1E" : "#ECECEC"))
+        let v = Int(h.trimmingCharacters(in: CharacterSet(charactersIn: "#")), radix: 16) ?? 0xECECEC
+        return [(v >> 16) & 255, (v >> 8) & 255, v & 255]
+    }
+    /// Hebt Textfarben des Spiels an/ab, deren Kontrast zum Hintergrund unter 4,5:1 liegt (WCAG AA).
+    private func contrastScript() -> String {
+        guard autoContrast, !(model.look.darkGames ?? darkGames && scheme == .dark) else { return "" }
+        let bg = backgroundRGB().map(String.init).joined(separator: ",")
+        return """
+        <script>(function(){var def=[\(bg)];
+        function L(c){c=c.map(function(v){v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return .2126*c[0]+.7152*c[1]+.0722*c[2]}
+        function R(a,b){var x=L(a),y=L(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+        function rgb(s){var m=s.match(/\\d+(\\.\\d+)?/g);return m?m.map(Number):null}
+        function bgOf(el){for(;el&&el.nodeType==1;el=el.parentElement){var m=rgb(getComputedStyle(el).backgroundColor);if(m&&(m.length<4||m[3]>.5))return m.slice(0,3)}return def}
+        document.querySelectorAll('body, body *').forEach(function(el){
+          var c=rgb(getComputedStyle(el).color);if(!c)return;c=c.slice(0,3);
+          var bg=bgOf(el);if(R(c,bg)>=4.5)return;
+          var t=L(bg)<.5?255:0;
+          for(var k=1;k<=20;k++){var n=c.map(function(v){return Math.round(v+(t-v)*k/20)});
+            if(R(n,bg)>=4.5||k==20){el.style.setProperty('color','rgb('+n.join(',')+')','important');return}}
+        });})();</script>
+        """
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKURLSchemeHandler {

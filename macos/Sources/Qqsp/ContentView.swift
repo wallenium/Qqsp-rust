@@ -196,6 +196,7 @@ struct ListCard: View {
     let selected: Int
     var hotkeys = false
     var centered = false
+    var objects = false
     var model: GameModel
     var onSelect: (Int) -> Void
     var onActivate: ((Int) -> Void)? = nil
@@ -208,7 +209,7 @@ struct ListCard: View {
             ScrollView {
                 VStack(spacing: 2) {
                     ForEach(items) { it in
-                        ListRow(item: it, selected: it.id == selected, hotkeys: hotkeys, centered: centered, model: model) {
+                        ListRow(item: it, selected: it.id == selected, hotkeys: hotkeys, centered: centered, objects: objects, model: model) {
                             focused = true
                             onSelect(it.id); onActivate?(it.id)
                         }
@@ -235,9 +236,13 @@ struct ListRow: View {
     let selected: Bool
     let hotkeys: Bool
     let centered: Bool
+    var objects = false
     var model: GameModel
     let action: () -> Void
     @State private var hover = false
+    @AppStorage(Key.actionsFont) private var actionsFont = 13
+    @AppStorage(Key.objectsFont) private var objectsFont = 13
+    private var size: CGFloat { CGFloat(objects ? (model.look.objectsFont ?? objectsFont) : (model.look.actionsFont ?? actionsFont)) }
 
     var body: some View {
         Button(action: action) {
@@ -246,7 +251,7 @@ struct ListRow: View {
                     Image(nsImage: img).resizable().scaledToFit().frame(width: 20, height: 20)
                 }
                 if hotkeys && item.id < 9 { Text("\(item.id + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
-                Text(GameModel.plain(item.text))
+                Text(RichText.make(item.text, size: size))
                     .multilineTextAlignment(centered ? .center : .leading)
                     .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
             }
@@ -282,7 +287,7 @@ struct ActionsCard: View {
 struct ObjectsCard: View {
     var model: GameModel
     var body: some View {
-        ListCard(items: model.objects, selected: model.selObject, centered: true, model: model,
+        ListCard(items: model.objects, selected: model.selObject, centered: true, objects: true, model: model,
                  onSelect: { model.choose(object: $0) },
                  onMove: { d in
                      let n = model.objects.count

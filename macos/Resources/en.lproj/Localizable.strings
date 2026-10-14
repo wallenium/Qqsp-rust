@@ -91,3 +91,14 @@
 "Neu" = "New";
 "Nur für „%@“" = "Only for “%@”";
 "Auf globale Einstellungen zurücksetzen" = "Reset to Global Settings";
+"Schrift Aktionen: %lld" = "Actions font size: %lld";
+"Schrift Objekte: %lld" = "Objects font size: %lld";
+"Spielinfo…" = "Game Info…";
+"Autor" = "Author";
+"Keine Beschreibung gefunden (info.txt, readme.txt …)." = "No description found (info.txt, readme.txt …).";
+"Spielstände synchronisieren" = "Sync Saves";
+"Standardordner (nur dieser Mac)" = "Default folder (this Mac only)";
+"Ordner wählen…" = "Choose Folder…";
+"iCloud Drive" = "iCloud Drive";
+"Zurücksetzen" = "Reset";
+"Schwer lesbare Textfarben automatisch anpassen" = "Automatically fix hard-to-read text colors";

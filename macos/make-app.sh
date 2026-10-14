@@ -26,9 +26,19 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>de.kompsoft.qqsp-rs</string>
+    <key>CFBundleURLSchemes</key><array><string>qqsp</string></array>
+  </dict></array>
   <key>CFBundleDocumentTypes</key><array><dict>
+    <key>CFBundleTypeName</key><string>QSP-Spielstand</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>CFBundleTypeIconFile</key><string>AppIcon</string>
+    <key>CFBundleTypeExtensions</key><array><string>sav</string></array>
+  </dict><dict>
     <key>CFBundleTypeName</key><string>QSP-Spiel</string>
     <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>CFBundleTypeIconFile</key><string>AppIcon</string>
     <key>LSHandlerRank</key><string>Default</string>
     <key>CFBundleTypeExtensions</key><array><string>qsp</string><string>gam</string></array>
   </dict></array>

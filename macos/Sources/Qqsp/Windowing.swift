@@ -11,11 +11,29 @@ final class Active {
     @ObservationIgnored var launched = false
     @ObservationIgnored private var lastURL: (URL, Date)?
 
-    /// Datei aus Finder/„Öffnen mit“: leeres aktives Fenster nutzen, sonst neuer Tab. Doppelte Events (je Fenster) werden verworfen.
-    func open(_ url: URL, in model: GameModel) {
+    /// Datei aus Finder/„Öffnen mit“ oder `qqsp://`-Befehl. Doppelte Events (je Fenster) werden verworfen.
+    /// Befehle (bewusst ohne Code-Ausführung): open?path=…, action?n=…, quicksave, quickload, undo, redo.
+    func handle(_ url: URL, in model: GameModel) {
         if let l = lastURL, l.0 == url, Date().timeIntervalSince(l.1) < 1 { return }
         lastURL = (url, Date())
-        model.openGame(url: url)
+        let m = self.model ?? model
+        if url.scheme == "qqsp" {
+            let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            func arg(_ k: String) -> String? { q.first { $0.name == k }?.value }
+            switch url.host {
+            case "open": if let p = arg("path") { m.openGame(url: URL(fileURLWithPath: p)) }
+            case "action": if let n = arg("n").flatMap({ Int($0) }), n >= 1, n <= m.actions.count { m.run(action: n - 1) }
+            case "quicksave": m.quickSaveNow()
+            case "quickload": m.quickLoad()
+            case "undo": m.undo()
+            case "redo": m.redo()
+            default: break
+            }
+        } else if url.pathExtension.lowercased() == "sav" {
+            if m.gameLoaded { m.openSaved(path: url.path) }
+        } else {
+            model.openGame(url: url)
+        }
     }
     /// Neuer Tab im aktuellen Fenster (optional gleich mit Spiel).
     func newTab(loading url: URL? = nil) {
@@ -30,7 +48,7 @@ struct GameWindow: View {
     var body: some View {
         ContentView(model: model)
             .background(WindowAccessor(model: model))
-            .onOpenURL { Active.shared.open($0, in: model) }
+            .onOpenURL { Active.shared.handle($0, in: model) }
             .onAppear {
                 DispatchQueue.main.async {
                     if let u = Active.shared.pending { Active.shared.pending = nil; model.loadGame(url: u) }

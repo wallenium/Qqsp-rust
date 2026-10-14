@@ -16,6 +16,10 @@ enum Key {
     static let useFore = "useForeColor", fore = "foreColor"
     static let useLink = "useLinkColor", link = "linkColor"
     static let volume = "volume", muted = "muted"
+    static let saveFolder = "saveFolder"
+    static let autoContrast = "autoContrast"
+    static let actionsFont = "actionsFontSize"
+    static let objectsFont = "objectsFontSize"
 }
 
 extension Color {

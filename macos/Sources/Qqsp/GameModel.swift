@@ -65,13 +65,21 @@ final class GameModel {
     @ObservationIgnored private var lastMs = Date()
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var gameKey: String { String(abs(core.fullPathHash)) }
+    /// Ordner für Schnell-/Auto-/Slot-Spielstände: gewählter Sync-Ordner (z. B. iCloud Drive) oder Application Support.
     @ObservationIgnored private var supportDir: String {
-        let d = (NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()) + "/Qqsp"
+        var d = (NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true).first ?? NSTemporaryDirectory()) + "/Qqsp"
+        if let f = defaults.string(forKey: Key.saveFolder), !f.isEmpty, FileManager.default.fileExists(atPath: f) { d = f + "/Qqsp" }
         try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true)
         return d
     }
-    @ObservationIgnored private var quickSave: String { supportDir + "/quick-\(gameKey).sav" }
-    @ObservationIgnored private var autoSave: String { supportDir + "/auto-\(gameKey).sav" }
+    /// Dateiname-Schlüssel der Spielstände: mit Sync-Ordner geräteunabhängig (Titel + Dateigröße), sonst Pfad-Hash.
+    @ObservationIgnored private var dirKey: String {
+        guard let f = defaults.string(forKey: Key.saveFolder), !f.isEmpty, !gameFile.isEmpty else { return gameKey }
+        let size = ((try? FileManager.default.attributesOfItem(atPath: gameFile))?[.size] as? Int) ?? 0
+        return (title + "-\(size)").replacingOccurrences(of: "/", with: "-")
+    }
+    @ObservationIgnored private var quickSave: String { supportDir + "/quick-\(dirKey).sav" }
+    @ObservationIgnored private var autoSave: String { supportDir + "/auto-\(dirKey).sav" }
     /// Zuletzt gespeicherter oder geladener Spielstand des aktuellen Spiels (neuester gewinnt).
     @ObservationIgnored private var lastSave: String? {
         get { defaults.string(forKey: "lastSave.\(gameKey)") }
@@ -147,6 +155,15 @@ final class GameModel {
         p.allowsOtherFileTypes = true
         if p.runModal() == .OK, let u = p.url { openGame(url: u) }
     }
+    func showInfo() {
+        let i = GameInfo.read(forFile: gameFile)
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = [i.author.map { NSLocalizedString("Autor", comment: "") + ": " + $0 }, i.info ?? NSLocalizedString("Keine Beschreibung gefunden (info.txt, readme.txt …).", comment: "")]
+            .compactMap { $0 }.joined(separator: "\n\n")
+        a.addButton(withTitle: NSLocalizedString("OK", comment: ""))
+        a.runModal()
+    }
     func restart() {
         guard gameLoaded else { return }
         history = []; future = []; syncUndo()
@@ -192,7 +209,7 @@ final class GameModel {
 
     // MARK: Spielstand-Slots (pro Spiel: Ordner mit „Datum__Ort.sav“, dazu Schnell- und Autospeicher)
     private var slotDir: String {
-        let d = supportDir + "/slots-\(gameKey)"
+        let d = supportDir + "/slots-\(dirKey)"
         try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true)
         return d
     }
@@ -440,5 +457,5 @@ final class Audio {
 
 struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date; var preview = "" }
 /// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
-struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool? }
+struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int? }
 struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String? }

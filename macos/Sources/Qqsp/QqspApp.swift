@@ -62,6 +62,8 @@ struct AppCommands: Commands {
             Button("Spielstände…") { openWindow(id: "saves") }.keyboardShortcut("l", modifiers: [.command, .shift])
         }
         CommandMenu("Spiel") {
+            Button("Spielinfo…") { m?.showInfo() }.keyboardShortcut("i").disabled(!loaded)
+            Divider()
             Button("Zug zurück") { m?.undo() }.keyboardShortcut("[").disabled(!(m?.canUndo ?? false))
             Button("Zug wiederholen") { m?.redo() }.keyboardShortcut("]").disabled(!(m?.canRedo ?? false))
         }
@@ -119,6 +121,9 @@ struct OptionsView: View {
     @AppStorage(Key.autoscroll) private var autoScroll = true
     @AppStorage(Key.captions) private var captions = true
     @AppStorage(Key.hotkeys) private var showHotkeys = false
+    @AppStorage(Key.autoContrast) private var autoContrast = true
+    @AppStorage(Key.actionsFont) private var actionsFont = 13
+    @AppStorage(Key.objectsFont) private var objectsFont = 13
 
     private let families = NSFontManager.shared.availableFontFamilies
 
@@ -136,12 +141,15 @@ struct OptionsView: View {
                 }
                 Stepper("Schriftgröße: \(fontSize)", value: $fontSize, in: 8...48)
                 Slider(value: $zoom, in: 0.5...3, step: 0.1) { Text("Textzoom: \(Int(zoom * 100)) %") }
+                Stepper("Schrift Aktionen: \(actionsFont)", value: $actionsFont, in: 9...32)
+                Stepper("Schrift Objekte: \(objectsFont)", value: $objectsFont, in: 9...32)
             }
             Section("Farben (überschreiben die Vorgaben des Spiels)") {
                 colorRow("Hintergrund", on: $useBack, hex: $backHex)
                 colorRow("Text", on: $useFore, hex: $foreHex)
                 colorRow("Links", on: $useLink, hex: $linkHex)
                 Toggle("Helle Spiele im Dunkelmodus abdunkeln", isOn: $darkGames)
+                Toggle("Schwer lesbare Textfarben automatisch anpassen", isOn: $autoContrast)
             }
             Section("Darstellung") {
                 Toggle("Titelzeilen der Fenster anzeigen", isOn: $captions)
@@ -149,6 +157,7 @@ struct OptionsView: View {
                 Toggle("HTML als Text anzeigen", isOn: $plainHTML)
                 Toggle("Automatisch nach unten scrollen", isOn: $autoScroll)
             }
+            SaveFolderSection()
             if let g = Active.shared.model, g.gameLoaded { GameLookSection(model: g) }
             Section("Über") { Text("Qqsp (Rust-Engine) · QSP \(Core.versionString)").foregroundStyle(.secondary) }
         }
@@ -170,6 +179,8 @@ struct GameLookSection: View {
     @AppStorage(Key.zoom) private var zoom = 1.0
     @AppStorage(Key.fontSize) private var fontSize = 16
     @AppStorage(Key.darkGames) private var darkGames = false
+    @AppStorage(Key.actionsFont) private var actionsFont = 13
+    @AppStorage(Key.objectsFont) private var objectsFont = 13
 
     var body: some View {
         Section(String(format: NSLocalizedString("Nur für „%@“", comment: ""), model.title)) {
@@ -178,10 +189,36 @@ struct GameLookSection: View {
             }
             Stepper("Schriftgröße: \(model.look.fontSize ?? fontSize)",
                     value: Binding(get: { model.look.fontSize ?? fontSize }, set: { v in model.updateLook { $0.fontSize = v } }), in: 8...48)
+            Stepper("Schrift Aktionen: \(model.look.actionsFont ?? actionsFont)",
+                    value: Binding(get: { model.look.actionsFont ?? actionsFont }, set: { v in model.updateLook { $0.actionsFont = v } }), in: 9...32)
+            Stepper("Schrift Objekte: \(model.look.objectsFont ?? objectsFont)",
+                    value: Binding(get: { model.look.objectsFont ?? objectsFont }, set: { v in model.updateLook { $0.objectsFont = v } }), in: 9...32)
             Toggle("Helle Spiele im Dunkelmodus abdunkeln",
                    isOn: Binding(get: { model.look.darkGames ?? darkGames }, set: { v in model.updateLook { $0.darkGames = v } }))
             Button("Auf globale Einstellungen zurücksetzen") { model.updateLook { $0 = Look() } }
                 .disabled(model.look == Look())
+        }
+    }
+}
+
+/// Ordner für Schnell-/Auto-/Slot-Spielstände, z. B. in iCloud Drive, damit sie zwischen Macs geteilt werden.
+struct SaveFolderSection: View {
+    @AppStorage(Key.saveFolder) private var folder = ""
+    private var icloud: String { NSHomeDirectory() + "/Library/Mobile Documents/com~apple~CloudDocs" }
+
+    var body: some View {
+        Section("Spielstände synchronisieren") {
+            Text(folder.isEmpty ? NSLocalizedString("Standardordner (nur dieser Mac)", comment: "") : folder)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle)
+            HStack {
+                Button("Ordner wählen…") {
+                    let p = NSOpenPanel()
+                    p.canChooseDirectories = true; p.canChooseFiles = false; p.canCreateDirectories = true
+                    if p.runModal() == .OK, let u = p.url { folder = u.path }
+                }
+                Button("iCloud Drive") { folder = icloud }.disabled(!FileManager.default.fileExists(atPath: icloud))
+                Button("Zurücksetzen") { folder = "" }.disabled(folder.isEmpty)
+            }
         }
     }
 }

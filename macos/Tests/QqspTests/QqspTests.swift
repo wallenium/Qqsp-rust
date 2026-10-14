@@ -77,4 +77,34 @@ final class QqspTests: XCTestCase {
         XCTAssertEqual(e.title, "demo")
         XCTAssertNotNil(e.cover)
     }
+
+    func testURLSchemeAction() throws {
+        let m = GameModel()
+        m.loadGame(url: try tempGame())
+        Active.shared.model = m
+        Active.shared.handle(URL(string: "qqsp://action?n=1")!, in: m)
+        XCTAssertTrue(m.mainDesc.contains("two"))
+        Active.shared.handle(URL(string: "qqsp://undo")!, in: m)
+        XCTAssertTrue(m.mainDesc.contains("one"))
+    }
+
+    func testGameInfoReadsAuthor() throws {
+        let url = try tempGame()
+        let dir = url.deletingLastPathComponent()
+        try "Autor: Max Muster\nEin kleines Abenteuer.".write(to: dir.appendingPathComponent("info.txt"), atomically: true, encoding: .utf8)
+        let i = GameInfo.read(forFile: url.path)
+        XCTAssertEqual(i.author, "Max Muster")
+        XCTAssertTrue(i.info?.contains("Abenteuer") == true)
+    }
+
+    func testHTMLBodyLikeQqsp() {
+        XCTAssertEqual(HTMLView.htmlBody("a\r\nb\r\n"), "a<br>b")
+        XCTAssertEqual(HTMLView.htmlBody("<table></table>\n<center>x</center>\ny"), "<table></table><center>x</center>y")
+    }
+
+    func testRichTextStripsTagsAndKeepsBold() {
+        let a = RichText.make("Gehe <b>nach</b> &amp; <font color=\"red\">Hause</font><br>los", size: 13)
+        XCTAssertEqual(String(a.characters), "Gehe nach & Hause los")
+        XCTAssertGreaterThan(a.runs.count, 2)
+    }
 }
