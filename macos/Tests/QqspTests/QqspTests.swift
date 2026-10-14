@@ -107,4 +107,17 @@ final class QqspTests: XCTestCase {
         XCTAssertEqual(String(a.characters), "Gehe nach & Hause los")
         XCTAssertGreaterThan(a.runs.count, 2)
     }
+
+    func testEditVariableThroughExec() throws {
+        let m = GameModel()
+        m.loadGame(url: try tempGame())
+        m.exec("score = 42")
+        m.exec("$title = 'It''s'")
+        m.reloadDebugVars()
+        XCTAssertEqual(m.debugVars.first { $0.name == "SCORE" }?.num, 42)
+        XCTAssertEqual(m.debugVars.first { $0.name == "TITLE" }?.str, "It's")
+        m.exec("killvar 'score', 0")
+        m.reloadDebugVars()
+        XCTAssertNil(m.debugVars.first { $0.name == "SCORE" })
+    }
 }

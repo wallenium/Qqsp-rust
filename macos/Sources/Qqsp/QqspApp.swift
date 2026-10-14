@@ -7,6 +7,7 @@ struct QqspApp: App {
             .commands { AppCommands() }
 
         Window("Spielstände", id: "saves") { SavesView() }
+        Window("Variablen-Editor", id: "vars") { VarsEditorView() }
         Window("Debug", id: "debug") { DebugView() }
         Settings { OptionsView() }
     }
@@ -63,6 +64,7 @@ struct AppCommands: Commands {
         }
         CommandMenu("Spiel") {
             Button("Spielinfo…") { m?.showInfo() }.keyboardShortcut("i").disabled(!loaded)
+            Button("Variablen-Editor…") { openWindow(id: "vars") }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(!loaded)
             Divider()
             Button("Zug zurück") { m?.undo() }.keyboardShortcut("[").disabled(!(m?.canUndo ?? false))
             Button("Zug wiederholen") { m?.redo() }.keyboardShortcut("]").disabled(!(m?.canRedo ?? false))
@@ -132,45 +134,82 @@ struct OptionsView: View {
     private let families = NSFontManager.shared.availableFontFamilies
 
     var body: some View {
-        Form {
-            Section("Ton") {
-                Slider(value: $volume, in: 0...100) { Text("Lautstärke") }.onChange(of: volume) { Active.shared.model?.audio.applyMute() }
-                Toggle("Stumm", isOn: $muted).onChange(of: muted) { Active.shared.model?.audio.applyMute() }
-            }
-            Section("Schrift") {
-                Toggle("Schriftart des Spiels verwenden", isOn: $useGameFont)
-                Toggle("Eigene Schriftart", isOn: $useFontName)
-                if useFontName {
-                    Picker("Schriftart", selection: $fontName) { ForEach(families, id: \.self) { Text($0).tag($0) } }
-                }
-                Stepper("Schriftgröße: \(fontSize)", value: $fontSize, in: 8...48)
-                Slider(value: $zoom, in: 0.5...3, step: 0.1) { Text("Textzoom: \(Int(zoom * 100)) %") }
-                Stepper("Schrift Aktionen: \(actionsFont)", value: $actionsFont, in: 9...32)
-                Stepper("Schrift Objekte: \(objectsFont)", value: $objectsFont, in: 9...32)
-                Stepper(statusFont == 0 ? NSLocalizedString("Schrift Zusatzbeschreibung: wie Haupttext", comment: "") : String(format: NSLocalizedString("Schrift Zusatzbeschreibung: %lld", comment: ""), statusFont),
-                        value: $statusFont, in: 0...48)
-                Stepper("Symbolgröße in Listen: \(iconSize)", value: $iconSize, in: 12...64, step: 4)
-            }
-            Section("Farben (überschreiben die Vorgaben des Spiels)") {
-                colorRow("Hintergrund", on: $useBack, hex: $backHex)
-                colorRow("Text", on: $useFore, hex: $foreHex)
-                colorRow("Links", on: $useLink, hex: $linkHex)
-                Toggle("Helle Spiele im Dunkelmodus abdunkeln", isOn: $darkGames)
-                Toggle("Schwer lesbare Textfarben automatisch anpassen", isOn: $autoContrast)
-            }
-            Section("Darstellung") {
-                Toggle("Titelzeilen der Fenster anzeigen", isOn: $captions)
-                Toggle("Klassische Darstellung (enger, wie Qt-Qqsp)", isOn: $classicLook)
-                Toggle("Bildlaufleiste immer sichtbar", isOn: $scrollbars)
-                Toggle("Tasten 1–9 für Aktionen", isOn: $showHotkeys)
-                Toggle("HTML als Text anzeigen", isOn: $plainHTML)
-                Toggle("Automatisch nach unten scrollen", isOn: $autoScroll)
-            }
-            SaveFolderSection()
-            if let g = Active.shared.model, g.gameLoaded { GameLookSection(model: g) }
-            Section("Über") { Text("Qqsp (Rust-Engine) · QSP \(Core.versionString)").foregroundStyle(.secondary) }
+        TabView {
+            tab { general }.tabItem { Label("Allgemein", systemImage: "gearshape") }
+            tab { text }.tabItem { Label("Text", systemImage: "textformat") }
+            tab { colors }.tabItem { Label("Farben", systemImage: "paintpalette") }
+            tab { sound }.tabItem { Label("Ton", systemImage: "speaker.wave.2") }
+            tab { thisGame }.tabItem { Label("Dieses Spiel", systemImage: "gamecontroller") }
         }
-        .formStyle(.grouped).frame(width: 460).padding()
+        .scenePadding()
+        .frame(width: 520, height: 460)
+    }
+
+    /// Jede Seite: gruppiertes Formular wie in den macOS-Systemeinstellungen.
+    private func tab<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        Form { content() }.formStyle(.grouped)
+    }
+
+    @ViewBuilder private var general: some View {
+        Section("Darstellung") {
+            Toggle("Titelzeilen der Fenster anzeigen", isOn: $captions)
+            Toggle("Klassische Darstellung (enger, wie Qt-Qqsp)", isOn: $classicLook)
+            Toggle("Bildlaufleiste immer sichtbar", isOn: $scrollbars)
+        }
+        Section("Bedienung") {
+            Toggle("Tasten 1–9 für Aktionen", isOn: $showHotkeys)
+            Toggle("Automatisch nach unten scrollen", isOn: $autoScroll)
+            Toggle("HTML als Text anzeigen", isOn: $plainHTML)
+        }
+        SaveFolderSection()
+        Section("Über") { Text("Qqsp (Rust-Engine) · QSP \(Core.versionString)").foregroundStyle(.secondary) }
+    }
+
+    @ViewBuilder private var text: some View {
+        Section("Haupttext") {
+            Toggle("Schriftart des Spiels verwenden", isOn: $useGameFont)
+            Toggle("Eigene Schriftart", isOn: $useFontName)
+            if useFontName {
+                Picker("Schriftart", selection: $fontName) { ForEach(families, id: \.self) { Text($0).tag($0) } }
+            }
+            Stepper("Schriftgröße: \(fontSize)", value: $fontSize, in: 8...48)
+            Slider(value: $zoom, in: 0.5...3, step: 0.1) { Text("Textzoom: \(Int(zoom * 100)) %") }
+            Stepper(statusFont == 0 ? NSLocalizedString("Schrift Zusatzbeschreibung: wie Haupttext", comment: "") : String(format: NSLocalizedString("Schrift Zusatzbeschreibung: %lld", comment: ""), statusFont),
+                    value: $statusFont, in: 0...48)
+        }
+        Section("Listen") {
+            Stepper("Schrift Aktionen: \(actionsFont)", value: $actionsFont, in: 9...32)
+            Stepper("Schrift Objekte: \(objectsFont)", value: $objectsFont, in: 9...32)
+            Stepper("Symbolgröße in Listen: \(iconSize)", value: $iconSize, in: 12...64, step: 4)
+        }
+    }
+
+    @ViewBuilder private var colors: some View {
+        Section("Eigene Farben (überschreiben die Vorgaben des Spiels)") {
+            colorRow("Hintergrund", on: $useBack, hex: $backHex)
+            colorRow("Text", on: $useFore, hex: $foreHex)
+            colorRow("Links", on: $useLink, hex: $linkHex)
+        }
+        Section("Lesbarkeit") {
+            Toggle("Schwer lesbare Textfarben automatisch anpassen", isOn: $autoContrast)
+            Toggle("Helle Spiele im Dunkelmodus abdunkeln", isOn: $darkGames)
+        }
+    }
+
+    @ViewBuilder private var sound: some View {
+        Section("Ton") {
+            Slider(value: $volume, in: 0...100) { Text("Lautstärke") }.onChange(of: volume) { Active.shared.model?.audio.applyMute() }
+            Toggle("Stumm", isOn: $muted).onChange(of: muted) { Active.shared.model?.audio.applyMute() }
+        }
+    }
+
+    @ViewBuilder private var thisGame: some View {
+        if let g = Active.shared.model, g.gameLoaded {
+            GameLookSection(model: g)
+        } else {
+            ContentUnavailableView("Kein Spiel geöffnet", systemImage: "gamecontroller",
+                                   description: Text("Öffne ein Spiel, um Einstellungen nur für dieses Spiel festzulegen."))
+        }
     }
 
     private func colorRow(_ title: String, on: Binding<Bool>, hex: Binding<String>) -> some View {

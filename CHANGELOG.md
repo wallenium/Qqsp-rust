@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Variable editor window (⇧⌘E): view, edit, create and delete all variables of the active game; undoable via Undo Move
+- Settings reorganized into tabs (General, Text, Colors, Sound, This Game) in macOS system-settings style
 - List icons: adjustable size, larger preview popover on hover
 - Tooltips on `exec:` links show the code they run
 - Window size/position remembered per game; always-visible scrollbar (optional)

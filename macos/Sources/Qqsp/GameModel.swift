@@ -262,7 +262,7 @@ final class GameModel {
                 let num = (v.first as? NSNumber)?.intValue ?? 0
                 let str = v.count > 1 ? v[1] as? String : nil
                 if num == 0 && (str ?? "").isEmpty { continue }
-                out.append(DebugVar(name: name, index: inv[i] ?? String(i), num: num, str: str))
+                out.append(DebugVar(name: name, index: inv[i] ?? String(i), num: num, str: str, isKey: inv[i] != nil))
             }
         }
         debugVars = out
@@ -463,4 +463,4 @@ final class Audio {
 struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date; var preview = "" }
 /// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
 struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int?; var statusFont: Int? }
-struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String? }
+struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String?; var isKey = false }
