@@ -57,6 +57,10 @@ struct WindowAccessor: NSViewRepresentable {
             if w.isKeyWindow { Active.shared.model = model }
             NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: w, queue: .main) { _ in
                 Active.shared.model = model
+                model.focusGained()
+            }
+            NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: w, queue: .main) { _ in
+                model.focusLost()
             }
         }
         return v

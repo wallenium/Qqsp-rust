@@ -15,6 +15,7 @@ A Rust port of the QSP text-quest engine (libqsp 5.7.0) with a native SwiftUI (L
 - Multiple games at once: each window/tab has its own game state (⌘N window, ⌘T tab)
 - Resume the last game with its newest save on launch; save slots, quick save (F5/F9), autosave on quit
 - Debug window (variables, log, run code), keyboard navigation, persisted pane widths
+- Undo/redo of moves, game library with covers/play time, save previews, per-game display settings
 - UI in German and English (follows the system language)
 
 ## Build (macOS)
@@ -29,6 +30,7 @@ A Rust port of the QSP text-quest engine (libqsp 5.7.0) with a native SwiftUI (L
 
 ```sh
 cargo test
+(cd macos && swift test)    # Swift model tests (needs build-core.sh first)
 QQSP_SRC=/path/to/Qqsp python3 tests/diff/run.py --fuzz 1000   # needs gcc
 ```
 
@@ -36,7 +38,7 @@ The GitHub Action (`.github/workflows/ci.yml`) runs both and builds the app.
 
 ## Performance
 
-Compared with the C engine: on par or faster for arrays, text keys, regex and string concatenation; about 1.7× slower in very tight loops (2M iterations: 4.6 s vs 2.7 s). Loading a 5000-location game takes ~0.03 s.
+Compared with the C engine: on par or faster in all benchmarks (arrays, text keys, regex, string functions, 2M-iteration loop: 2.6 s vs 2.7 s). Loading a 5000-location game takes ~0.03 s.
 
 ## Known differences from the C engine
 

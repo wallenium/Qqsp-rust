@@ -21,6 +21,11 @@ struct AppCommands: Commands {
     @AppStorage(Key.captions) private var captions = true
     @AppStorage(Key.zoom) private var zoom = 1.0
 
+    /// Zoom gilt pro Spiel (Überschreibung), ohne Spiel global.
+    private func setZoom(_ f: (Double) -> Double?) {
+        let cur = m?.look.zoom ?? zoom
+        if let m, m.gameLoaded { m.updateLook { $0.zoom = f(cur) } } else if let v = f(cur) { zoom = v }
+    }
     private var m: GameModel? { active.model }
     private var loaded: Bool { m?.gameLoaded ?? false }
     private var canSave: Bool { loaded && !(m?.noSave ?? true) }
@@ -56,6 +61,10 @@ struct AppCommands: Commands {
             Button("Schnell speichern") { m?.quickSaveNow() }.keyboardShortcut(KeyEquivalent("\u{F708}"), modifiers: []).disabled(!canSave)
             Button("Spielstände…") { openWindow(id: "saves") }.keyboardShortcut("l", modifiers: [.command, .shift])
         }
+        CommandMenu("Spiel") {
+            Button("Zug zurück") { m?.undo() }.keyboardShortcut("[").disabled(!(m?.canUndo ?? false))
+            Button("Zug wiederholen") { m?.redo() }.keyboardShortcut("]").disabled(!(m?.canRedo ?? false))
+        }
         CommandMenu("Anzeige") {
             Toggle("Aktionen", isOn: show(0)).keyboardShortcut("1")
             Toggle("Objekte", isOn: show(1)).keyboardShortcut("2")
@@ -68,9 +77,9 @@ struct AppCommands: Commands {
             Toggle("Automatisch scrollen", isOn: $autoScroll)
             Divider()
             Button("Vollbild") { NSApp.keyWindow?.toggleFullScreen(nil) }.keyboardShortcut(KeyEquivalent("\u{F70E}"), modifiers: [])
-            Button("Text vergrößern") { zoom = min(zoom + 0.1, 3) }.keyboardShortcut("+")
-            Button("Text verkleinern") { zoom = max(zoom - 0.1, 0.5) }.keyboardShortcut("-")
-            Button("Originalgröße") { zoom = 1 }.keyboardShortcut("0")
+            Button("Text vergrößern") { setZoom { min($0 + 0.1, 3) } }.keyboardShortcut("+")
+            Button("Text verkleinern") { setZoom { max($0 - 0.1, 0.5) } }.keyboardShortcut("-")
+            Button("Originalgröße") { setZoom { _ in nil } }.keyboardShortcut("0")
             Divider()
             Button("Debug-Fenster") { openWindow(id: "debug") }.keyboardShortcut("d", modifiers: [.command, .shift])
         }
@@ -140,6 +149,7 @@ struct OptionsView: View {
                 Toggle("HTML als Text anzeigen", isOn: $plainHTML)
                 Toggle("Automatisch nach unten scrollen", isOn: $autoScroll)
             }
+            if let g = Active.shared.model, g.gameLoaded { GameLookSection(model: g) }
             Section("Über") { Text("Qqsp (Rust-Engine) · QSP \(Core.versionString)").foregroundStyle(.secondary) }
         }
         .formStyle(.grouped).frame(width: 460).padding()
@@ -150,6 +160,28 @@ struct OptionsView: View {
             Toggle(title, isOn: on)
             Spacer()
             ColorPicker("", selection: colorBinding(hex), supportsOpacity: false).labelsHidden().disabled(!on.wrappedValue)
+        }
+    }
+}
+
+/// Einstellungen nur für das aktive Spiel (überschreiben die globalen).
+struct GameLookSection: View {
+    @Bindable var model: GameModel
+    @AppStorage(Key.zoom) private var zoom = 1.0
+    @AppStorage(Key.fontSize) private var fontSize = 16
+    @AppStorage(Key.darkGames) private var darkGames = false
+
+    var body: some View {
+        Section(String(format: NSLocalizedString("Nur für „%@“", comment: ""), model.title)) {
+            Slider(value: Binding(get: { model.look.zoom ?? zoom }, set: { v in model.updateLook { $0.zoom = v } }), in: 0.5...3, step: 0.1) {
+                Text("Textzoom: \(Int((model.look.zoom ?? zoom) * 100)) %")
+            }
+            Stepper("Schriftgröße: \(model.look.fontSize ?? fontSize)",
+                    value: Binding(get: { model.look.fontSize ?? fontSize }, set: { v in model.updateLook { $0.fontSize = v } }), in: 8...48)
+            Toggle("Helle Spiele im Dunkelmodus abdunkeln",
+                   isOn: Binding(get: { model.look.darkGames ?? darkGames }, set: { v in model.updateLook { $0.darkGames = v } }))
+            Button("Auf globale Einstellungen zurücksetzen") { model.updateLook { $0 = Look() } }
+                .disabled(model.look == Look())
         }
     }
 }

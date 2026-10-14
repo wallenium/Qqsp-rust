@@ -34,6 +34,9 @@ private struct SavesContent: View {
                             Text(slot.title)
                             Text("\(slot.kind) · \(slot.date.formatted(date: .abbreviated, time: .standard))")
                                 .font(.caption).foregroundStyle(.secondary)
+                            if !slot.preview.isEmpty {
+                                Text(slot.preview).font(.caption2).foregroundStyle(.tertiary).lineLimit(2)
+                            }
                         }
                         Spacer()
                         Button("Laden") { model.loadSlot(slot) }.buttonStyle(.glass)

@@ -73,10 +73,15 @@ impl Engine {
         if nb.is_empty() || is_digit(nb[0]) || str_p_brk(name, DELIMS).is_some() {
             return self.fail(NOTCORRECTNAME);
         }
-        let uname = upper(name);
         let mut b: u8 = 0;
-        for u in uname.encode_utf16() {
-            b = RAND8[(b ^ (u as u8)) as usize];
+        if name.is_ascii() {
+            for &c in nb {
+                b = RAND8[(b ^ c.to_ascii_uppercase()) as usize];
+            }
+        } else {
+            for u in upper(name).encode_utf16() {
+                b = RAND8[(b ^ (u as u8)) as usize];
+            }
         }
         let base = VARSSEEK * b as usize;
         for i in 0..VARSSEEK {
@@ -84,11 +89,11 @@ impl Engine {
             match &slot.name {
                 None => {
                     if create {
-                        slot.name = Some(uname);
+                        slot.name = Some(upper(name));
                     }
                     return Ok(base + i);
                 }
-                Some(n) if *n == uname => return Ok(base + i),
+                Some(n) if n.chars().eq(name.chars().map(up)) => return Ok(base + i),
                 _ => {}
             }
         }

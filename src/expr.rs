@@ -73,7 +73,6 @@ pub const OP_CURACTS: u8 = 62;
 const STACKSIZE: usize = 30;
 const MAXITEMS: usize = 100;
 
-#[allow(dead_code)]
 struct OpInfo {
     pri: i32,
     res: u8,
@@ -181,9 +180,21 @@ fn operator_op_code(s: &str) -> (u8, usize) {
         return (OP_END, 0);
     }
     let on = op_names();
-    let key = upper(&s.chars().take(on.max_len).collect::<String>());
+    // Schlüssel ohne Heap-Allokation: höchstens max_len Zeichen, groß geschrieben
+    let mut buf = [0u8; 64];
+    let mut n = 0;
+    for c in s.chars().take(on.max_len) {
+        let mut t = [0u8; 4];
+        let e = up(c).encode_utf8(&mut t).as_bytes();
+        if n + e.len() > buf.len() {
+            break;
+        }
+        buf[n..n + e.len()].copy_from_slice(e);
+        n += e.len();
+    }
+    let key = &buf[..n];
     for level in &on.levels {
-        if let Some(i) = bsearch(level, |e| ncmp(key.as_bytes(), e.0.as_bytes())) {
+        if let Some(i) = bsearch(level, |e| ncmp(key, e.0.as_bytes())) {
             return (level[i].1, level[i].0.len());
         }
     }

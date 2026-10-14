@@ -84,3 +84,10 @@
 "Slot" = "Slot";
 "Spielstand" = "Save";
 "Rust-Neuimplementierung der QSP-Engine, kompatibel zu libqsp %@.\nLizenz: LGPL-2.1 oder neuer.\nBasierend auf Qqsp (Sonnix1) und libqsp (Valeriy Argunov).\n" = "Rust reimplementation of the QSP engine, compatible with libqsp %@.\nLicense: LGPL-2.1 or later.\nBased on Qqsp (Sonnix1) and libqsp (Valeriy Argunov).\n";
+"Zug zurück" = "Undo Move";
+"Zug wiederholen" = "Redo Move";
+"Spiel" = "Game";
+"Zuletzt gespielt" = "Recently Played";
+"Neu" = "New";
+"Nur für „%@“" = "Only for “%@”";
+"Auf globale Einstellungen zurücksetzen" = "Reset to Global Settings";

@@ -40,6 +40,8 @@ struct ContentView: View {
             ToolbarItemGroup {
                 Button("Spiel öffnen", systemImage: "folder") { model.openGameDialog() }
                 Button("Neu starten", systemImage: "arrow.counterclockwise") { model.restart() }.disabled(!model.gameLoaded)
+                Button("Zug zurück", systemImage: "arrow.uturn.backward") { model.undo() }.disabled(!model.canUndo)
+                Button("Zug wiederholen", systemImage: "arrow.uturn.forward") { model.redo() }.disabled(!model.canRedo)
             }
             ToolbarSpacer(.fixed)
             ToolbarItemGroup {
@@ -57,7 +59,7 @@ struct ContentView: View {
             guard let u = urls.first else { return false }
             model.openGame(url: u); return true
         }
-        .overlay { if !model.gameLoaded { Welcome(model: model) } }
+        .overlay { if !model.gameLoaded { Library(model: model) } }
     }
     @ViewBuilder private func leftColumn(height: CGFloat) -> some View {
         let both = model.show[2] && model.show[0]
@@ -269,12 +271,12 @@ struct ActionsCard: View {
     var body: some View {
         // Einfachklick wählt, Doppelklick führt aus – wie in Qqsp
         ListCard(items: model.actions, selected: model.selAction, hotkeys: hotkeys, model: model,
-                 onSelect: { model.choose(action: $0) }, onActivate: { _ in model.core.runAction() },
+                 onSelect: { model.choose(action: $0) }, onActivate: { _ in model.runSelected() },
                  onMove: { d in
                      let n = model.actions.count
                      if n > 0 { model.choose(action: min(max(model.selAction + d, 0), n - 1)) }
                  },
-                 onReturn: { model.core.runAction() })
+                 onReturn: { model.runSelected() })
     }
 }
 struct ObjectsCard: View {
@@ -292,19 +294,5 @@ struct StatusCard: View {
     var model: GameModel
     var body: some View {
         HTMLView(html: model.varsDesc, model: model, asHTML: true, scroll: false)
-    }
-}
-
-struct Welcome: View {
-    var model: GameModel
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "text.book.closed").font(.system(size: 44)).symbolRenderingMode(.hierarchical)
-            Text("QSP-Spiel öffnen").font(.title2.bold())
-            Text("Datei hierher ziehen oder auswählen (.qsp / .gam)").foregroundStyle(.secondary)
-            Button("Spiel öffnen…") { model.openGameDialog() }.buttonStyle(.glassProminent).controlSize(.large)
-        }
-        .padding(32)
-        .glassEffect(.regular, in: .rect(cornerRadius: 28))
     }
 }

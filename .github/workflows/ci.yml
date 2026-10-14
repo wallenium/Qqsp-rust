@@ -25,6 +25,8 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - name: Engine bauen (universal)
         run: ./macos/build-core.sh
+      - name: Swift-Tests
+        run: cd macos && swift test
       - name: App bauen
         run: ./macos/make-app.sh
       - name: Archivieren

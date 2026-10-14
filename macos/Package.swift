@@ -14,5 +14,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-L", "lib", "-lqsp_core"])]
         ),
+        .testTarget(
+            name: "QqspTests",
+            dependencies: ["Qqsp"],
+            path: "Tests/QqspTests",
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.unsafeFlags(["-L", "lib", "-lqsp_core"])]
+        ),
     ]
 )

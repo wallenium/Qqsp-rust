@@ -39,12 +39,12 @@ pub fn at(t: &[u8], i: usize) -> u8 {
 /// qspIsInList: NUL ist nie enthalten.
 #[inline]
 pub fn is_in_list(list: &[u8], ch: u8) -> bool {
-    ch != 0 && list.contains(&ch)
+    ch != 0 && has(list, ch)
 }
 /// qspIsInListEOL: Stringende (NUL) zählt als enthalten.
 #[inline]
 pub fn is_in_list_eol(list: &[u8], ch: u8) -> bool {
-    ch == 0 || list.contains(&ch)
+    ch == 0 || has(list, ch)
 }
 #[inline]
 pub fn is_digit(ch: u8) -> bool {
@@ -74,8 +74,21 @@ pub fn cmp_str(a: &str, b: &str) -> i32 {
     }
 }
 
+/// Kurze Zeichenlisten: einfache Schleife ist schneller als memchr-Aufruf.
+#[inline(always)]
+fn has(list: &[u8], ch: u8) -> bool {
+    let mut i = 0;
+    while i < list.len() {
+        if list[i] == ch {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
 pub fn str_p_brk(s: &str, set: &[u8]) -> Option<usize> {
-    s.as_bytes().iter().position(|b| set.contains(b))
+    s.as_bytes().iter().position(|&b| has(set, b))
 }
 
 pub fn in_str_r_chars(s: &str, chars: &[u8], end: Option<usize>) -> Option<usize> {

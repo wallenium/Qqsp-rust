@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Undo/redo of moves (⌘[ / ⌘]) via in-memory snapshots, up to 100 steps
+- Game library on the start screen: recent games with cover, last played, play time, one-click resume
+- Save previews: the last text of the game is shown next to each save
+- Per-game display settings (zoom, font size, dark mode) remembered per game
+- Engine: faster expression evaluation (no allocations for operator/variable lookup); now on par with or faster than the C engine in all benchmarks
+- Swift unit tests (`swift test`), run in CI
 - Multiple games: one window/tab per game with separate state (⌘N, ⌘T); opening a game in a loaded window opens a new tab
 - English localization (German remains the source language)
 - Saves and Debug windows follow the active game window

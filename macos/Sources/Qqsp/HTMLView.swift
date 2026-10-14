@@ -46,7 +46,9 @@ struct HTMLView: NSViewRepresentable {
 
     private func css() -> String {
         let m = model
-        let size = useGameFont ? (m.fontSize ?? userFontSize) : userFontSize
+        let base = m.look.fontSize ?? userFontSize
+        let size = useGameFont && m.look.fontSize == nil ? (m.fontSize ?? userFontSize) : base
+        let zoom = m.look.zoom ?? self.zoom
         var s = "html{color-scheme:light dark;zoom:\(zoom)} body{font-size:\(size)px;font-family:-apple-system,sans-serif;"
         if useFontName { s += "font-family:'\(userFontName)',-apple-system,sans-serif;" }
         else if useGameFont, let f = m.fontName { s += "font-family:'\(f)',-apple-system,sans-serif;" }
@@ -55,7 +57,7 @@ struct HTMLView: NSViewRepresentable {
         if useLink { s += "color:\(linkHex);" } else if let c = hex(m.lcolor) { s += "color:\(c);" }
         s += "} img{max-width:100%}"
         // Dunkelmodus für helle Spielseiten: Seite invertieren, Bilder/Videos wieder zurück
-        if darkGames && scheme == .dark {
+        if (m.look.darkGames ?? darkGames) && scheme == .dark {
             s += "html{filter:invert(1) hue-rotate(180deg)} img,video,canvas{filter:invert(1) hue-rotate(180deg)}"
         }
         return s

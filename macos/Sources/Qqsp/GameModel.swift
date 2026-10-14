@@ -32,6 +32,10 @@ final class GameModel {
     var title = "Qqsp"
     var revision = 0                          // erhöht sich bei jedem Hauptfenster-Update
     var gameLoaded = false
+    var canUndo = false
+    var canRedo = false
+    /// Spielbezogene Darstellung (überschreibt die globalen Einstellungen)
+    var look = Look()
 
     // Verlauf, Spielstand-Slots, Debug
     var recent: [String] = UserDefaults.standard.stringArray(forKey: "recentGames") ?? []
@@ -52,6 +56,10 @@ final class GameModel {
     @ObservationIgnored lazy var core = Core(model: self)
     @ObservationIgnored let audio = Audio()
     @ObservationIgnored weak var window: NSWindow?
+    @ObservationIgnored var gameFile = ""          // voller Pfad der .qsp-Datei
+    @ObservationIgnored private var history: [Data] = []
+    @ObservationIgnored private var future: [Data] = []
+    @ObservationIgnored private var activeSince: Date?
     @ObservationIgnored var gamePath = ""         // Verzeichnis der .qsp-Datei
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var lastMs = Date()
@@ -67,7 +75,10 @@ final class GameModel {
     /// Zuletzt gespeicherter oder geladener Spielstand des aktuellen Spiels (neuester gewinnt).
     @ObservationIgnored private var lastSave: String? {
         get { defaults.string(forKey: "lastSave.\(gameKey)") }
-        set { defaults.set(newValue, forKey: "lastSave.\(gameKey)") }
+        set {
+            defaults.set(newValue, forKey: "lastSave.\(gameKey)")
+            if !gameFile.isEmpty { defaults.set(newValue, forKey: "resumeSave." + gameFile) }   // für die Bibliothek
+        }
     }
 
     init() {
@@ -77,6 +88,7 @@ final class GameModel {
             NotificationCenter.default.addObserver(forName: n, object: nil, queue: .main) { [weak self] note in
                 // Dialoge/Panels (NSPanel) ignorieren – nur das Hauptfenster bzw. App-Ende löst die Sicherung aus
                 if let w = note.object as? NSWindow, w !== self?.window { return }   // nur das eigene Fenster bzw. App-Ende
+                self?.focusLost()
                 self?.autoSaveNow()
                 if note.name == NSWindow.willCloseNotification, Active.shared.model === self { Active.shared.model = nil }
             }
@@ -85,7 +97,7 @@ final class GameModel {
 
     func autoSaveNow() {
         guard gameLoaded, !noSave else { return }
-        if core.save(path: autoSave) { lastSave = autoSave }
+        if core.save(path: autoSave) { lastSave = autoSave; writePreview(autoSave) }
     }
 
     /// Beim Start: letztes Spiel samt neuestem Spielstand anbieten.
@@ -119,6 +131,11 @@ final class GameModel {
         audio.base = gamePath
         title = url.deletingPathExtension().lastPathComponent
         gameLoaded = true
+        gameFile = path
+        look = loadLook()
+        history = []; future = []; syncUndo()
+        defaults.set(Date(), forKey: "lastPlayed." + path)
+        if window?.isKeyWindow == true { focusGained() }
         defaults.set(path, forKey: "lastGamePath")
         addRecent(path)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
@@ -130,7 +147,11 @@ final class GameModel {
         p.allowsOtherFileTypes = true
         if p.runModal() == .OK, let u = p.url { openGame(url: u) }
     }
-    func restart() { if gameLoaded && !core.restart() { report() } }
+    func restart() {
+        guard gameLoaded else { return }
+        history = []; future = []; syncUndo()
+        if !core.restart() { report() }
+    }
 
     // MARK: Spielstände
     func openSaved(path: String?) {
@@ -154,7 +175,7 @@ final class GameModel {
             guard p.runModal() == .OK, let u = p.url else { return }
             file = u.path
         }
-        if core.save(path: file!) { lastSave = file } else { report() }
+        if core.save(path: file!) { lastSave = file; writePreview(file!) } else { report() }
     }
     func quickLoad() { if FileManager.default.fileExists(atPath: quickSave) { openSaved(path: quickSave) } }
     func quickSaveNow() { saveGame(path: quickSave) }
@@ -180,7 +201,7 @@ final class GameModel {
         let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
         let loc = core.curLoc().replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
         let path = slotDir + "/\(f.string(from: Date()))__\(loc).sav"
-        if core.save(path: path) { lastSave = path; refreshSlots() } else { report() }
+        if core.save(path: path) { lastSave = path; writePreview(path); refreshSlots() } else { report() }
     }
     func refreshSlots() {
         guard gameLoaded else { slots = []; return }
@@ -188,18 +209,19 @@ final class GameModel {
         func date(_ p: String) -> Date? { (try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date }
         var out: [SaveSlot] = []
         for (path, title, kind) in [(quickSave, NSLocalizedString("Schnellspeicher", comment: ""), NSLocalizedString("Schnell", comment: "")), (autoSave, NSLocalizedString("Automatisch (beim Beenden)", comment: ""), NSLocalizedString("Auto", comment: ""))] {
-            if let d = date(path) { out.append(SaveSlot(id: path, title: title, kind: kind, date: d)) }
+            if let d = date(path) { out.append(SaveSlot(id: path, title: title, kind: kind, date: d, preview: preview(path))) }
         }
         for f in (try? fm.contentsOfDirectory(atPath: slotDir)) ?? [] where f.hasSuffix(".sav") {
             let p = slotDir + "/" + f
             let loc = f.components(separatedBy: "__").dropFirst().joined(separator: "__").replacingOccurrences(of: ".sav", with: "")
-            out.append(SaveSlot(id: p, title: loc.isEmpty ? NSLocalizedString("Spielstand", comment: "") : loc, kind: NSLocalizedString("Slot", comment: ""), date: date(p) ?? .distantPast))
+            out.append(SaveSlot(id: p, title: loc.isEmpty ? NSLocalizedString("Spielstand", comment: "") : loc, kind: NSLocalizedString("Slot", comment: ""), date: date(p) ?? .distantPast, preview: preview(p)))
         }
         slots = out.sorted { $0.date > $1.date }
     }
     func loadSlot(_ s: SaveSlot) { openSaved(path: s.id) }
     func deleteSlot(_ s: SaveSlot) {
         try? FileManager.default.removeItem(atPath: s.id)
+        try? FileManager.default.removeItem(atPath: s.id + ".txt")
         if lastSave == s.id { lastSave = nil }
         refreshSlots()
     }
@@ -226,10 +248,70 @@ final class GameModel {
 
     // MARK: Aktionen / Eingabe
     func choose(action i: Int) { core.selectAction(i) }
-    func run(action i: Int) { core.selectAction(i); core.runAction() }
+    func run(action i: Int) { beginAction(); core.selectAction(i); core.runAction() }
+    func runSelected() { beginAction(); core.runAction() }
     func choose(object i: Int) { core.selectObject(i) }
-    func submitInput() { core.setInput(input); core.userInput() }
-    func exec(_ code: String) { _ = core.exec(code) }
+    func submitInput() { beginAction(); core.setInput(input); core.userInput() }
+    func exec(_ code: String) { beginAction(); _ = core.exec(code) }
+
+    // MARK: Zeitreise (Zug zurück / wiederholen) – Schnappschüsse als Spielstand-Daten im Speicher
+    private func snapshot() -> Data? {
+        let p = NSTemporaryDirectory() + "qqsp-\(UUID().uuidString).sav"
+        defer { try? FileManager.default.removeItem(atPath: p) }
+        guard core.save(path: p) else { return nil }
+        return try? Data(contentsOf: URL(fileURLWithPath: p))
+    }
+    private func restore(_ d: Data) {
+        let p = NSTemporaryDirectory() + "qqsp-\(UUID().uuidString).sav"
+        defer { try? FileManager.default.removeItem(atPath: p) }
+        guard (try? d.write(to: URL(fileURLWithPath: p))) != nil else { return }
+        if !core.open(saved: p) { report() }
+    }
+    private func syncUndo() { canUndo = !history.isEmpty; canRedo = !future.isEmpty }
+    /// Vor jeder Spieleraktion aufrufen. Spiele mit NOSAVE bleiben ohne Verlauf.
+    func beginAction() {
+        guard gameLoaded, !noSave, let s = snapshot() else { return }
+        history.append(s)
+        if history.count > 100 { history.removeFirst(history.count - 100) }
+        future.removeAll()
+        syncUndo()
+    }
+    func undo() {
+        guard let prev = history.last, let cur = snapshot() else { return }
+        history.removeLast(); future.append(cur)
+        restore(prev); syncUndo()
+    }
+    func redo() {
+        guard let next = future.last, let cur = snapshot() else { return }
+        future.removeLast(); history.append(cur)
+        restore(next); syncUndo()
+    }
+
+    // MARK: Spielzeit
+    func focusGained() { if gameLoaded, activeSince == nil { activeSince = Date() } }
+    func focusLost() {
+        guard let s = activeSince, !gameFile.isEmpty else { return }
+        activeSince = nil
+        let k = "playtime." + gameFile
+        defaults.set(defaults.double(forKey: k) + Date().timeIntervalSince(s), forKey: k)
+        defaults.set(Date(), forKey: "lastPlayed." + gameFile)
+    }
+
+    // MARK: Darstellung pro Spiel
+    private var lookKey: String { "look." + gameKey }
+    private func loadLook() -> Look { defaults.data(forKey: lookKey).flatMap { try? JSONDecoder().decode(Look.self, from: $0) } ?? Look() }
+    func updateLook(_ f: (inout Look) -> Void) {
+        var l = look; f(&l); look = l
+        if gameLoaded, let d = try? JSONEncoder().encode(l) { defaults.set(d, forKey: lookKey) }
+    }
+
+    // MARK: Spielstand-Vorschau (letzter Text der Hauptbeschreibung neben der .sav-Datei)
+    private func writePreview(_ path: String) {
+        let t = Self.plain(mainDesc).replacingOccurrences(of: "&nbsp;", with: " ")
+        let one = t.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        try? String(one.suffix(200)).write(toFile: path + ".txt", atomically: true, encoding: .utf8)
+    }
+    private func preview(_ path: String) -> String { (try? String(contentsOfFile: path + ".txt", encoding: .utf8)) ?? "" }
 
     // MARK: Callbacks
     func refresh(redraw: Bool) {
@@ -356,5 +438,7 @@ final class Audio {
 }
 
 
-struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date }
+struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date; var preview = "" }
+/// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
+struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool? }
 struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String? }
