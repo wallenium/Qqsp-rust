@@ -141,6 +141,11 @@ final class GameModel {
         gameLoaded = true
         gameFile = path
         look = loadLook()
+        if let w = window {                       // Fenstergröße/-position pro Spiel merken
+            let name = "qqsp-game-" + gameKey
+            w.setFrameUsingName(name)
+            w.setFrameAutosaveName(name)
+        }
         history = []; future = []; syncUndo()
         defaults.set(Date(), forKey: "lastPlayed." + path)
         if window?.isKeyWindow == true { focusGained() }
@@ -457,5 +462,5 @@ final class Audio {
 
 struct SaveSlot: Identifiable, Equatable { let id: String; let title: String; let kind: String; let date: Date; var preview = "" }
 /// Spielbezogene Überschreibungen der Darstellung (nil = globale Einstellung).
-struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int? }
+struct Look: Codable, Equatable { var zoom: Double?; var fontSize: Int?; var darkGames: Bool?; var actionsFont: Int?; var objectsFont: Int?; var statusFont: Int? }
 struct DebugVar: Identifiable { let id = UUID(); let name: String; let index: String; let num: Int; let str: String? }

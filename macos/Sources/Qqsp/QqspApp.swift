@@ -122,6 +122,10 @@ struct OptionsView: View {
     @AppStorage(Key.captions) private var captions = true
     @AppStorage(Key.hotkeys) private var showHotkeys = false
     @AppStorage(Key.autoContrast) private var autoContrast = true
+    @AppStorage(Key.listIconSize) private var iconSize = 20
+    @AppStorage(Key.statusFont) private var statusFont = 0
+    @AppStorage(Key.classicLook) private var classicLook = false
+    @AppStorage(Key.scrollbars) private var scrollbars = true
     @AppStorage(Key.actionsFont) private var actionsFont = 13
     @AppStorage(Key.objectsFont) private var objectsFont = 13
 
@@ -143,6 +147,9 @@ struct OptionsView: View {
                 Slider(value: $zoom, in: 0.5...3, step: 0.1) { Text("Textzoom: \(Int(zoom * 100)) %") }
                 Stepper("Schrift Aktionen: \(actionsFont)", value: $actionsFont, in: 9...32)
                 Stepper("Schrift Objekte: \(objectsFont)", value: $objectsFont, in: 9...32)
+                Stepper(statusFont == 0 ? NSLocalizedString("Schrift Zusatzbeschreibung: wie Haupttext", comment: "") : String(format: NSLocalizedString("Schrift Zusatzbeschreibung: %lld", comment: ""), statusFont),
+                        value: $statusFont, in: 0...48)
+                Stepper("Symbolgröße in Listen: \(iconSize)", value: $iconSize, in: 12...64, step: 4)
             }
             Section("Farben (überschreiben die Vorgaben des Spiels)") {
                 colorRow("Hintergrund", on: $useBack, hex: $backHex)
@@ -153,6 +160,8 @@ struct OptionsView: View {
             }
             Section("Darstellung") {
                 Toggle("Titelzeilen der Fenster anzeigen", isOn: $captions)
+                Toggle("Klassische Darstellung (enger, wie Qt-Qqsp)", isOn: $classicLook)
+                Toggle("Bildlaufleiste immer sichtbar", isOn: $scrollbars)
                 Toggle("Tasten 1–9 für Aktionen", isOn: $showHotkeys)
                 Toggle("HTML als Text anzeigen", isOn: $plainHTML)
                 Toggle("Automatisch nach unten scrollen", isOn: $autoScroll)
@@ -191,6 +200,8 @@ struct GameLookSection: View {
                     value: Binding(get: { model.look.fontSize ?? fontSize }, set: { v in model.updateLook { $0.fontSize = v } }), in: 8...48)
             Stepper("Schrift Aktionen: \(model.look.actionsFont ?? actionsFont)",
                     value: Binding(get: { model.look.actionsFont ?? actionsFont }, set: { v in model.updateLook { $0.actionsFont = v } }), in: 9...32)
+            Stepper(model.look.statusFont.map { String(format: NSLocalizedString("Schrift Zusatzbeschreibung: %lld", comment: ""), $0) } ?? NSLocalizedString("Schrift Zusatzbeschreibung: wie Haupttext", comment: ""),
+                    value: Binding(get: { model.look.statusFont ?? 0 }, set: { v in model.updateLook { $0.statusFont = v == 0 ? nil : v } }), in: 0...48)
             Stepper("Schrift Objekte: \(model.look.objectsFont ?? objectsFont)",
                     value: Binding(get: { model.look.objectsFont ?? objectsFont }, set: { v in model.updateLook { $0.objectsFont = v } }), in: 9...32)
             Toggle("Helle Spiele im Dunkelmodus abdunkeln",

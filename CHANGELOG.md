@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- List icons: adjustable size, larger preview popover on hover
+- Tooltips on `exec:` links show the code they run
+- Window size/position remembered per game; always-visible scrollbar (optional)
+- Separate font size for the additional description (global and per game)
+- "Classic look" option: tighter margins and Helvetica like Qt Qqsp
 - Actions/Objects lists render bold, italic, underline and font colors from the game's HTML
 - HTML mode now converts newlines to `<br>` like the original Qqsp (fixes broken table layouts)
 - Automatic contrast fix: text colors of games below 4.5:1 contrast against the background are lightened/darkened (Settings ▸ Colors)

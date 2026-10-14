@@ -21,6 +21,9 @@ struct HTMLView: NSViewRepresentable {
     @AppStorage(Key.zoom) private var zoom = 1.0
     @AppStorage(Key.darkGames) private var darkGames = false
     @AppStorage(Key.autoContrast) private var autoContrast = true
+    @AppStorage(Key.statusFont) private var statusFont = 0
+    @AppStorage(Key.classicLook) private var classicLook = false
+    @AppStorage(Key.scrollbars) private var scrollbars = true
     @AppStorage(Key.useBack) private var useBack = false
     @AppStorage(Key.back) private var backHex = "#FFFFFF"
     @AppStorage(Key.useFore) private var useFore = false
@@ -50,15 +53,18 @@ struct HTMLView: NSViewRepresentable {
     private func css() -> String {
         let m = model
         let base = m.look.fontSize ?? userFontSize
-        let size = useGameFont && m.look.fontSize == nil ? (m.fontSize ?? userFontSize) : base
+        var size = useGameFont && m.look.fontSize == nil ? (m.fontSize ?? userFontSize) : base
+        if !scroll, let sf = m.look.statusFont ?? (statusFont > 0 ? statusFont : nil) { size = sf }   // Zusatzbeschreibung
         let zoom = m.look.zoom ?? self.zoom
         var s = "html{color-scheme:light dark;zoom:\(zoom)} body{font-size:\(size)px;font-family:-apple-system,sans-serif;"
         if useFontName { s += "font-family:'\(userFontName)',-apple-system,sans-serif;" }
         else if useGameFont, let f = m.fontName { s += "font-family:'\(f)',-apple-system,sans-serif;" }
         if useFore { s += "color:\(foreHex);" } else if let c = hex(m.fcolor) { s += "color:\(c);" }
-        s += "margin:12px;word-wrap:break-word} a{"
+        s += (classicLook ? "margin:4px;line-height:1.15;font-family:'Helvetica Neue',Helvetica,sans-serif;" : "margin:12px;") + "word-wrap:break-word} a{"
         if useLink { s += "color:\(linkHex);" } else if let c = hex(m.lcolor) { s += "color:\(c);" }
         s += "} img{max-width:100%}"
+        // Bildlaufleiste dauerhaft sichtbar (macOS blendet sie sonst aus)
+        if scrollbars { s += "::-webkit-scrollbar{width:12px;height:12px} ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.55);border-radius:6px;border:2px solid transparent;background-clip:content-box} ::-webkit-scrollbar-track{background:transparent}" }
         // Dunkelmodus für helle Spielseiten: Seite invertieren, Bilder/Videos wieder zurück
         if (m.look.darkGames ?? darkGames) && scheme == .dark {
             s += "html{filter:invert(1) hue-rotate(180deg)} img,video,canvas{filter:invert(1) hue-rotate(180deg)}"
@@ -81,9 +87,13 @@ struct HTMLView: NSViewRepresentable {
     private func makePage() -> String {
         let body = (model.useHTML && !plainHTML && asHTML) ? Self.htmlBody(html) : "<div style='white-space:pre-wrap'>\(Self.esc(html))</div>"
         let auto = scroll && autoScroll && !model.disableScroll ? "<script>window.scrollTo(0,document.body.scrollHeight)</script>" : ""
-        return "<!doctype html><meta charset=utf-8><style>\(css())</style><body>\(body)\(contrastScript())\(auto)"
+        return "<!doctype html><meta charset=utf-8><style>\(css())</style><body>\(body)\(Self.tooltipScript)\(contrastScript())\(auto)"
     }
 
+    /// `exec:`-Links bekommen den Code als Tooltip (Debuggen / „was macht dieser Link?“).
+    static let tooltipScript = """
+    <script>document.querySelectorAll('a[href^="exec:" i]').forEach(function(a){if(!a.title){var c=a.getAttribute('href').slice(5);try{c=decodeURIComponent(c)}catch(e){}a.title=c.length>200?c.slice(0,200)+'…':c}});</script>
+    """
     /// Hintergrundfarbe unter dem Text (Override, Spielfarbe oder Fensterfarbe) als [r,g,b].
     private func backgroundRGB() -> [Int] {
         let h = useBack ? backHex : (hex(model.bcolor) ?? (scheme == .dark ? "#1E1E1E" : "#ECECEC"))

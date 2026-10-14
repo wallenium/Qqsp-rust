@@ -18,6 +18,10 @@ enum Key {
     static let volume = "volume", muted = "muted"
     static let saveFolder = "saveFolder"
     static let autoContrast = "autoContrast"
+    static let listIconSize = "listIconSize"
+    static let statusFont = "statusFontSize"       // 0 = wie Hauptbeschreibung
+    static let classicLook = "classicLook"
+    static let scrollbars = "visibleScrollbars"
     static let actionsFont = "actionsFontSize"
     static let objectsFont = "objectsFontSize"
 }

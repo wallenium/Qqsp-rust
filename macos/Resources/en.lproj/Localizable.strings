@@ -102,3 +102,8 @@
 "iCloud Drive" = "iCloud Drive";
 "Zurücksetzen" = "Reset";
 "Schwer lesbare Textfarben automatisch anpassen" = "Automatically fix hard-to-read text colors";
+"Schrift Zusatzbeschreibung: wie Haupttext" = "Additional description font: same as main text";
+"Schrift Zusatzbeschreibung: %lld" = "Additional description font: %lld";
+"Symbolgröße in Listen: %lld" = "List icon size: %lld";
+"Klassische Darstellung (enger, wie Qt-Qqsp)" = "Classic look (tighter, like Qt Qqsp)";
+"Bildlaufleiste immer sichtbar" = "Always show scrollbar";
