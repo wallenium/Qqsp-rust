@@ -58,6 +58,7 @@ pub mod st {
     pub const VIEW: u8 = 52;
     pub const WAIT: u8 = 53;
     pub const XGOTO: u8 = 54;
+    pub use crate::ext59::st::*;
 }
 use st::*;
 
@@ -135,6 +136,9 @@ pub fn stat_spec(code: u8) -> StatSpec {
         VIEW => s(0, 1, &[1], 0),
         WAIT => s(1, 1, &[2], 0),
         XGOTO => s(1, 10, any10, 0),
+        SORTARR => s(1, 2, &[1, 2], 0),
+        SCANSTR => s(3, 4, &[1, 1, 1, 2], 0),
+        SETVAR => s(2, 3, &[1, 0, 0], 0),
         _ => s(0, 0, &[], 0),
     }
 }
@@ -179,7 +183,7 @@ fn stat_names() -> &'static StatNames {
 }
 
 /// qspGetStatCode: liefert (Code, Parameter-Offset relativ zu `s`).
-pub fn get_stat_code(s: &str) -> (u8, Option<usize>) {
+pub fn get_stat_code(s: &str, ext: bool) -> (u8, Option<usize>) {
     let b = s.as_bytes();
     if b.is_empty() {
         return (UNKNOWN, None);
@@ -189,6 +193,11 @@ pub fn get_stat_code(s: &str) -> (u8, Option<usize>) {
     }
     if b[0] == b'!' {
         return (COMMENT, None);
+    }
+    if ext {
+        if let Some((c, n)) = crate::ext59::stat_code(s) {
+            return (c, Some(n));
+        }
     }
     let sn = stat_names();
     let key: String = upper(&s.chars().take(sn.max_len).collect::<String>());
@@ -220,12 +229,12 @@ fn find_delim(str: &str, from: usize, pat: &str) -> Option<usize> {
 }
 
 /// Port von qspInitLineOfCode.
-pub fn init_line(text: String, line_num: i32) -> Line {
+pub fn init_line(text: String, line_num: i32, ext: bool) -> Line {
     let str = text.as_str();
     let len = str.len();
     let mut stats: Vec<Stat> = Vec::new();
     let mut buf = skip_spaces(str);
-    let (mut stat, rel) = get_stat_code(&str[buf..]);
+    let (mut stat, rel) = get_stat_code(&str[buf..], ext);
     let mut param: Option<usize> = rel.map(|r| r + buf);
     let mut delim: Option<usize> = None;
     let mut next = 0usize;
@@ -303,7 +312,7 @@ pub fn init_line(text: String, line_num: i32) -> Line {
                 },
             });
             buf = next + skip_spaces(&str[next.min(len)..]);
-            let (s2, r2) = get_stat_code(&str[buf.min(len)..]);
+            let (s2, r2) = get_stat_code(&str[buf.min(len)..], ext);
             stat = s2;
             param = r2.map(|r| r + buf);
             if buf < len && stat != COMMENT {
@@ -394,7 +403,7 @@ fn preformatted(data: &str) -> Vec<(String, i32)> {
 }
 
 /// qspPreprocessData: Text -> Zeilen mit Statement-Cache.
-pub fn preprocess(data: &str) -> Vec<Line> {
+pub fn preprocess(data: &str, ext: bool) -> Vec<Line> {
     let pre = preformatted(data);
     let count = pre.len();
     let mut out = Vec::new();
@@ -412,7 +421,7 @@ pub fn preprocess(data: &str) -> Vec<Line> {
                 s.push_str(&pre[i].0);
             }
         }
-        out.push(init_line(s, last_num));
+        out.push(init_line(s, last_num, ext));
         i += 1;
         last_num = pre.get(i).map(|p| p.1).unwrap_or(0);
     }

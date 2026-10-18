@@ -80,13 +80,21 @@ struct OpInfo {
     max: i32,
     types: [u8; 10],
 }
-fn op_info(op: u8) -> OpInfo {
+fn op_info(op: u8, ext: bool) -> OpInfo {
     let o = |pri, res, min, max, t: &[u8]| {
         let mut types = [0u8; 10];
         types[..t.len()].copy_from_slice(t);
         OpInfo { pri, res, min, max, types }
     };
     let ten0: &[u8] = &[0; 10];
+    if ext {
+        match op {
+            crate::ext59::OP_ARRITEM => return o(30, 0, 1, 2, &[1, 0]),
+            OP_COUNTOBJ => return o(30, 2, 0, 1, &[1]),
+            OP_REPLACE => return o(30, 1, 2, 4, &[1, 1, 1, 2]),
+            _ => {}
+        }
+    }
     match op {
         OP_START | OP_OPENBRACKET => o(127, 0, 0, 0, &[]),
         OP_MINUS => o(18, 2, 1, 1, &[2]),
@@ -166,7 +174,10 @@ fn op_names() -> &'static OpNames {
     })
 }
 
-fn function_op_code(name: &str) -> u8 {
+fn function_op_code(name: &str, ext: bool) -> u8 {
+    if ext && crate::ext59::is_arritem(name) {
+        return crate::ext59::OP_ARRITEM;
+    }
     let u = upper(name);
     let l1 = &op_names().levels[1];
     match bsearch(l1, |e| cmp_str(&u, &e.0)) {
@@ -337,7 +348,7 @@ impl Engine {
         *opsp += 1;
         ops[*opsp as usize] = op;
         *argsp += 1;
-        args[*argsp as usize] = if op < OP_FIRST_FUNCTION { op_info(op).min } else { 0 };
+        args[*argsp as usize] = if op < OP_FIRST_FUNCTION { op_info(op, self.ext59).min } else { 0 };
         Ok(())
     }
     fn append(&mut self, items: &mut Vec<Item>, op: u8, argc: i32, val: Val) -> R<()> {
@@ -368,7 +379,7 @@ impl Engine {
                 if (op == OP_AND || op == OP_OR || op == OP_MOD) && !is_in_list(b" \t'\"{(", at(s.as_bytes(), 0)) {
                     return self.fail(SYNTAX);
                 }
-                while op_info(op).pri <= op_info(ops[opsp as usize]).pri && op_info(ops[opsp as usize]).pri != 127 {
+                while op_info(op, self.ext59).pri <= op_info(ops[opsp as usize], self.ext59).pri && op_info(ops[opsp as usize], self.ext59).pri != 127 {
                     if ops[opsp as usize] >= OP_FIRST_FUNCTION {
                         args[argsp as usize] += 1;
                     }
@@ -393,7 +404,7 @@ impl Engine {
                         opsp -= 1;
                         op = ops[opsp as usize];
                         if op >= OP_FIRST_FUNCTION {
-                            let i = op_info(op);
+                            let i = op_info(op, self.ext59);
                             let n = args[argsp as usize] + 1;
                             if n < i.min || n > i.max {
                                 return self.fail(ARGSCOUNT);
@@ -405,7 +416,7 @@ impl Engine {
                     OP_COMMA => {
                         if opsp > 0 && ops[opsp as usize - 1] >= OP_FIRST_FUNCTION {
                             args[argsp as usize] += 1;
-                            if args[argsp as usize] > op_info(ops[opsp as usize - 1]).max {
+                            if args[argsp as usize] > op_info(ops[opsp as usize - 1], self.ext59).max {
                                 return self.fail(ARGSCOUNT);
                             }
                         } else {
@@ -459,7 +470,7 @@ impl Engine {
                     if op < OP_FIRST_FUNCTION {
                         return self.fail(SYNTAX);
                     }
-                    if op_info(op).min != 0 {
+                    if op_info(op, self.ext59).min != 0 {
                         return self.fail(ARGSCOUNT);
                     }
                     s = &s[1..];
@@ -469,7 +480,7 @@ impl Engine {
                     wait_op = true;
                 } else if !is_in_list_eol(DELIMS, c) {
                     let (name, used) = self.get_name(s)?;
-                    let op = function_op_code(name);
+                    let op = function_op_code(name, self.ext59);
                     if op >= OP_FIRST_FUNCTION {
                         s = &s[used..];
                         if at(s.as_bytes(), 0) == b'(' {
@@ -477,8 +488,8 @@ impl Engine {
                             self.push_op(&mut ops, &mut opsp, &mut args, &mut argsp, OP_OPENBRACKET)?;
                             s = &s[1..];
                             argsp -= 1;
-                        } else if op_info(op).min < 2 {
-                            if op_info(op).min != 0 {
+                        } else if op_info(op, self.ext59).min < 2 {
+                            if op_info(op, self.ext59).min != 0 {
                                 self.push_op(&mut ops, &mut opsp, &mut args, &mut argsp, op)?;
                             } else {
                                 self.append(&mut items, op, 0, Val::Num(0))?;
@@ -518,7 +529,7 @@ impl Engine {
         let mut stack: Vec<Val> = Vec::with_capacity(STACKSIZE);
         let mut tos = Val::Num(0);
         for it in items {
-            let info = op_info(it.op);
+            let info = op_info(it.op, self.ext59);
             let mut args: Vec<Val> = Vec::new();
             if it.argc > 0 {
                 if stack.len() + 1 < it.argc {
@@ -611,7 +622,8 @@ impl Engine {
             OP_TRIM => Val::Str(del_spc(a[0].s()).to_string()),
             OP_INPUT => Val::Str(self.call_input_box(a[0].s())),
             OP_RND => Val::Num(self.rand.next() % 1000 + 1),
-            OP_COUNTOBJ => Val::Num(self.cur_objects.len() as i32),
+            OP_COUNTOBJ => Val::Num(if a.is_empty() { self.cur_objects.len() as i32 } else { self.count_objects_by_name(a[0].s()) }),
+            crate::ext59::OP_ARRITEM => self.func_arr_item(&a)?,
             OP_MSECSCOUNT => Val::Num(self.get_time()),
             OP_QSPVER => Val::Str(QSP_VER.to_string()),
             OP_USERTEXT => Val::Str(self.cur_input.clone()),
@@ -746,6 +758,8 @@ impl Engine {
                     Val::Str(a[0].s().to_string())
                 } else if a.len() == 2 {
                     Val::Str(a[0].s().replace(&search, ""))
+                } else if a.len() == 4 {
+                    Val::Str(if a[3].num() > 0 { a[0].s().replacen(&search, a[2].s(), a[3].num() as usize) } else { a[0].s().to_string() })
                 } else {
                     Val::Str(a[0].s().replace(&search, a[2].s()))
                 }

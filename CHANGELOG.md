@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Optional per-game mode "QSP 5.9 functions": SORTARR, SCANSTR, SETVAR, ARRITEM, COUNTOBJ(name), REPLACE with count; default stays 5.7-exact; differential tests against libqsp 5.9.6; new file src/ext59.rs under MPL-2.0
 - Timeline window (⌥⌘T): all moves of the session with location, time, chosen action and text; jump to any state; save any state as a named bookmark (shown in Saves)
 - Watchlist shows a small chart of each pinned number across moves
 - Variable editor: pin variables, highlight values changed since the last move (with the previous value), filters for pinned/changed

@@ -116,6 +116,8 @@ pub struct Engine {
     pub(crate) exit_on_error: bool,
     pub(crate) rand: Rand,
     pub is_debug: bool,
+    /// Modus „5.9-Funktionen“ (vor dem Laden eines Spiels setzen).
+    pub(crate) ext59: bool,
     pub(crate) cur_desc: String,
     pub(crate) cur_vars: String,
     pub(crate) cur_input: String,
@@ -164,6 +166,7 @@ impl Engine {
             exit_on_error: false,
             rand: Rand::new(0),
             is_debug: false,
+            ext59: false,
             cur_desc: String::new(),
             cur_vars: String::new(),
             cur_input: String::new(),

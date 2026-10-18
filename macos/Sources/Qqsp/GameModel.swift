@@ -166,6 +166,7 @@ final class GameModel {
     }
     func loadGame(url: URL) {
         let path = url.path
+        core.setExt59(defaults.bool(forKey: "ext59." + path)) // vor dem Laden: Zeilen werden vorverarbeitet
         guard core.load(path: path) else { report(); return }
         gamePath = url.deletingLastPathComponent().path + "/"
         audio.base = gamePath
@@ -184,6 +185,13 @@ final class GameModel {
         addRecent(path)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         if !core.restart() { report() }
+    }
+    var ext59: Bool { defaults.bool(forKey: "ext59." + gameFile) }
+    /// Schaltet die 5.9-Funktionen für dieses Spiel um; das Spiel wird dazu neu geladen.
+    func setExt59(_ on: Bool) {
+        guard !gameFile.isEmpty else { return }
+        defaults.set(on, forKey: "ext59." + gameFile)
+        loadGame(url: URL(fileURLWithPath: gameFile))
     }
     func openGameDialog() {
         let p = NSOpenPanel()

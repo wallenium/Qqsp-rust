@@ -35,6 +35,14 @@ impl Engine {
     pub fn enable_debug_mode(&mut self, on: bool) {
         self.is_debug = on;
     }
+    /// Schaltet die additiven Erweiterungen aus QSP 5.9 ein (vor dem Laden eines Spiels aufrufen:
+    /// Zeilen werden beim Laden vorverarbeitet).
+    pub fn set_ext59(&mut self, on: bool) {
+        self.ext59 = on;
+    }
+    pub fn ext59(&self) -> bool {
+        self.ext59
+    }
     pub fn disable_code_exec(&mut self, on: bool) {
         self.disable_code_exec = on;
     }

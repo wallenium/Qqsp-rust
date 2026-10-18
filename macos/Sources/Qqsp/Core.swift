@@ -34,6 +34,7 @@ final class Core {
     deinit { qsp_free(e) }
 
     // MARK: Aufrufe
+    func setExt59(_ on: Bool) { qsp_set_ext59(e, on ? 1 : 0) }
     func load(path: String) -> Bool { qsp_load_game(e, path) != 0 }
     func restart() -> Bool { qsp_restart(e, 1) != 0 }
     func exec(_ code: String) -> Bool { qsp_exec_string(e, code, 1) != 0 }

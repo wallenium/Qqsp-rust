@@ -45,4 +45,16 @@ Compared with the C engine: on par or faster in all benchmarks (arrays, text key
 - `INT_MIN` is printed incorrectly in C (bug in `qspNumToStr`); correct here.
 - `QSPSaveGameAsData` in the C library overwrites a pointer; not reproduced.
 
-License: LGPL-2.1-or-later (derived from libqsp / Qqsp).
+## QSP 5.9 functions (optional, per game)
+
+The default behaviour is bit-exact libqsp 5.7.0. Per game (Settings → This Game) an extra mode adds
+additive features from libqsp 5.9.6: `SORTARR`, `SCANSTR`, `SETVAR`, `ARRITEM`, `COUNTOBJ('name')` and the
+optional count argument of `REPLACE`. `$QSPVER` still reports 5.7.0, and 5.8+ semantics changes
+(typed values, 1/0 booleans, new argument orders, tuples, loops …) are **not** part of this mode.
+Variables keep the 5.7 model; results match 5.9.6 for uniformly typed arrays without holes
+(differential tests in `tests/diff59`, `tests/diff59/README.md`).
+
+## License
+
+Mixed: LGPL-2.1-or-later (derived from libqsp 5.7 / Qqsp, see `LICENSE`) for everything except
+`src/ext59.rs`, which implements behaviour of libqsp 5.9 and is licensed under MPL-2.0 (see `LICENSE_MPL2`).

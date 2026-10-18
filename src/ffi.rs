@@ -134,6 +134,11 @@ extern "C" {
 pub unsafe extern "C" fn qsp_new(host: *const QspHost) -> E {
     Box::into_raw(Box::new(Engine::new(Rc::new(CHost(*host)))))
 }
+/// Schaltet die additiven 5.9-Erweiterungen ein/aus (vor dem Laden eines Spiels aufrufen).
+#[no_mangle]
+pub unsafe extern "C" fn qsp_set_ext59(e: E, on: c_int) {
+    (*e).set_ext59(on != 0);
+}
 #[no_mangle]
 pub unsafe extern "C" fn qsp_free(e: E) {
     if !e.is_null() {

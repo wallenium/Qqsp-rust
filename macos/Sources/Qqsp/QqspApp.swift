@@ -251,6 +251,10 @@ struct GameLookSection: View {
                    isOn: Binding(get: { model.look.darkGames ?? darkGames }, set: { v in model.updateLook { $0.darkGames = v } }))
             Button("Auf globale Einstellungen zurücksetzen") { model.updateLook { $0 = Look() } }
                 .disabled(model.look == Look())
+            Toggle("QSP-5.9-Funktionen (SORTARR, SCANSTR, SETVAR, ARRITEM …)",
+                   isOn: Binding(get: { model.ext59 }, set: { model.setExt59($0) }))
+            Text("Zusätzliche Befehle aus QSP 5.9. Das Spiel wird dabei neu gestartet; alles andere verhält sich wie 5.7.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 }

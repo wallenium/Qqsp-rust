@@ -276,7 +276,7 @@ impl Engine {
         let file_crc = if add_locs { 0 } else { crc(&padded) };
         let ucs2 = padded[1] == 0;
         let strs = split_game(&padded, ucs2);
-        let locs = match parse_game(&strs, ucs2) {
+        let locs = match parse_game(&strs, ucs2, self.ext59) {
             Some(l) => l,
             None => return self.fail(CANTLOADFILE),
         };
@@ -581,7 +581,7 @@ impl Engine {
             ind += 1;
             let mut code = Vec::new();
             for _ in 0..nlines {
-                let mut line = crate::code::init_line(dec(ind), 0);
+                let mut line = crate::code::init_line(dec(ind), 0, self.ext59);
                 ind += 1;
                 line.line_num = int(ind);
                 ind += 1;
@@ -658,7 +658,7 @@ impl Engine {
 }
 
 /// qspCheckQuest + Parser: liefert die Locations oder `None` bei ungültigen Daten.
-fn parse_game(strs: &[Vec<u16>], ucs2: bool) -> Option<Vec<Location>> {
+fn parse_game(strs: &[Vec<u16>], ucs2: bool, ext: bool) -> Option<Vec<Location>> {
     let count = strs.len();
     let plain = |i: usize| game_to_string(&strs[i], ucs2, false);
     let coded = |i: usize| game_to_string(&strs[i], ucs2, true);
@@ -708,7 +708,7 @@ fn parse_game(strs: &[Vec<u16>], ucs2: bool) -> Option<Vec<Location>> {
         ind += 1;
         let code = coded(ind);
         ind += 1;
-        let on_visit: Code = preprocess(&code).into_iter().map(Rc::new).collect();
+        let on_visit: Code = preprocess(&code, ext).into_iter().map(Rc::new).collect();
         let acts = if old {
             20
         } else {
@@ -729,7 +729,7 @@ fn parse_game(strs: &[Vec<u16>], ucs2: bool) -> Option<Vec<Location>> {
             ind += 1;
             let acode = coded(ind);
             ind += 1;
-            actions.push(LocAct { image, desc: adesc, code: preprocess(&acode).into_iter().map(Rc::new).collect() });
+            actions.push(LocAct { image, desc: adesc, code: preprocess(&acode, ext).into_iter().map(Rc::new).collect() });
         }
         locs.push(Location { name, desc, on_visit, actions });
     }

@@ -1,0 +1,330 @@
+msg 1+2
+===
+a[0]=3
+a[1]=1
+a[2]=2
+sortarr 'a'
+msg a[0] + a[1] + a[2]
+===
+a[0]=3
+a[1]=1
+a[2]=2
+sortarr 'a', 0
+msg a[0] + a[1] + a[2]
+===
+$a[0]='pear'
+$a[1]='apple'
+$a[2]='mango'
+sortarr '$a'
+msg $a[0] + ',' + $a[1] + ',' + $a[2]
+===
+$a['x']='pear'
+$a['y']='apple'
+sortarr '$a'
+msg $a['x'] + $a['y'] + $a[0]
+===
+a[0]=1
+$a[1]='x'
+sortarr 'a'
+msg 'no'
+===
+sortarr 'nope'
+msg arrsize('nope')
+===
+scanstr 'r', 'a1b22c333', '\d+'
+msg arrsize('r') + ',' + $r[0] + ',' + $r[1] + ',' + $r[2]
+===
+scanstr '$r', 'k=v; x=y', '(\w)=(\w)', 2
+msg arrsize('r') + ',' + $r[0] + ',' + $r[1]
+===
+scanstr 'r', 'abc', '['
+msg 'x'
+===
+scanstr 'r', 'abc', 'z*'
+msg arrsize('r')
+===
+scanstr 'r', 'abc', 'b', 5
+msg arrsize('r')
+===
+r[0]=5
+scanstr 'r', 'abc', 'q'
+msg arrsize('r')
+===
+setvar 'x', 5
+msg x
+===
+setvar '$x', 'hi'
+msg $x
+===
+setvar 'a', 7, 3
+msg a[3] + ',' + arrsize('a')
+===
+setvar 'a', 'v', 'key'
+msg $a['key'] + ',' + arrsize('a')
+===
+setvar '$x', 5
+msg $x
+===
+setvar 'x', 'abc'
+msg 'x'
+===
+a[0]=4
+a[1]=5
+msg arritem('a') + ',' + arritem('a', 1) + ',' + arritem('a', 7)
+===
+$a[0]='p'
+$a['k']='q'
+msg $arritem('a') + ',' + arritem('a','k') + ',' + $arritem('a', 9)
+===
+addobj 'a'
+addobj 'B'
+addobj 'a'
+msg countobj + countobj('a') + countobj('A') + countobj('b') + countobj('zz')
+===
+msg replace('aaaa','a','b',2)
+===
+msg replace('aaaa','a','b',0)
+===
+msg replace('aaaa','a','b',-1)
+===
+msg replace('aaaa','a','b',99)
+===
+msg replace('abab','ab','',1)
+===
+msg replace('abab','','x',2)
+
+===
+sortarr
+msg 'x'
+===
+sortarr 'a', 1, 2
+===
+scanstr 'r', 'a'
+===
+setvar 'a'
+===
+setvar 'a', 1, 2, 3
+===
+arritem()
+===
+msg arritem('a', 1, 2)
+===
+msg countobj('a', 'b')
+===
+msg replace('a','a','b',1,2)
+===
+!known
+a[3]=2
+a[1]=1
+sortarr 'a'
+msg arrsize('a') + ':' + a[0] + a[1] + a[2] + a[3]
+===
+a[0]=2
+a[1]=1
+a[2]=3
+a[3]=1
+sortarr 'a', 1
+msg a[0] + ',' + a[1] + ',' + a[2] + ',' + a[3]
+===
+$a['b']='z'
+$a['a']='y'
+$a['c']='x'
+sortarr '$a'
+msg $a['a'] + $a['b'] + $a['c'] + $a[0] + $a[1] + $a[2]
+===
+a[0]=-5
+a[1]=10
+a[2]=0
+a[3]=-7
+sortarr 'a'
+msg a[0] + ',' + a[1] + ',' + a[2] + ',' + a[3]
+===
+$a[0]='b'
+$a[1]='B'
+$a[2]='a'
+sortarr '$a'
+msg $a[0] + $a[1] + $a[2]
+===
+$a[0]='é'
+$a[1]='z'
+$a[2]='я'
+sortarr '$a'
+msg $a[0] + $a[1] + $a[2]
+===
+$a[0]='10'
+$a[1]='9'
+sortarr '$a'
+msg $a[0] + $a[1]
+===
+x=5
+sortarr 'x'
+msg x
+===
+scanstr 'r', 'one two  three', '\w+'
+msg arrsize('r') + $r[0] + $r[1] + $r[2]
+===
+scanstr 'r', 'AbC', '[a-z]'
+msg arrsize('r')
+===
+scanstr 'r', 'aXbXc', '(?<=X)\w'
+msg arrsize('r') + $r[0] + $r[1]
+===
+scanstr 'r', 'aXbXc', 'X', 1
+msg arrsize('r')
+===
+scanstr 'r', 'a,b;c', '[^,;]+', 0
+msg arrsize('r') + $r[2]
+===
+scanstr '$r', 'abc', '(a)|(z)', 2
+msg arrsize('r')
+===
+!known
+scanstr 'r', 'a1', '\d'
+msg $r[0] + (r[0] + 1)
+===
+scanstr 'r', '', 'a'
+msg arrsize('r')
+===
+scanstr 'r', 'abc', ''
+msg arrsize('r')
+===
+scanstr 'r[2]', 'abc', 'b'
+msg 'x'
+===
+scanstr 'r', 'a b', '\w', -1
+msg arrsize('r')
+===
+setvar 'a[1]', 5
+msg 'x'
+===
+setvar 'a', 5, 'k'
+setvar 'a', 6, 'j'
+msg a['k'] + a['j'] + arrsize('a')
+===
+setvar '1a', 1
+===
+setvar '', 1
+===
+setvar 'a', 5, -1
+msg arrsize('a')
+===
+!known
+setvar 'a', '5'
+msg a[0] + 1
+===
+setvar '$a', 5, 2
+msg $a[2] + arrsize('a')
+===
+!known
+setvar 'a', 1
+setvar 'a', 'x'
+msg a[0] + $a[0]
+===
+setvar 'a b', 1
+===
+$a[0]='s'
+a[1]=2
+msg arritem('a', 0) + arritem('a', 1)
+===
+msg arritem('zz')
+===
+msg arritem('zz', 3) + 1
+===
+a[0]=7
+msg arritem('a', 'nokey') + 1
+===
+a[0]=7
+msg arritem('a', '0') + 1
+===
+a[2]=7
+msg arritem('a', 1) + 1
+===
+!known
+$a[2]='t'
+msg arritem('a', 1) + 'z'
+===
+msg arritem('1x')
+===
+addobj 'x'
+delobj 'x'
+msg countobj('x') + countobj
+===
+msg countobj(1)
+===
+addobj 'x'
+msg countobj('X ')
+===
+addobj 'ab'
+addobj 'AB'
+msg countobj('Ab')
+===
+msg replace('aXbxc','x','-',1)
+===
+msg replace('aXbxc','x','-',2)
+===
+msg replace('aaa','aa','b',2)
+===
+msg replace('aaa','a','bb',2)
+===
+msg replace('abc','b','',1)
+===
+msg replace('abc','b',1,1)
+===
+msg replace('abc','b','z','1')
+===
+msg replace('abc','b','z','x')
+===
+msg $replace('abc','b','z',1)
+===
+!known
+x=replace('aaa','a','b',2)
+msg x
+===
+dynamic 'sortarr "q"'
+msg 'ok'
+===
+dynamic 'setvar "q", 3'
+msg q
+===
+sortarr 'a' & msg 'after'
+===
+if 1: sortarr 'a' & setvar 'b', 2
+msg b
+===
+act 'x': setvar 'k', 1
+msg 'x'
+===
+local a
+a[0]=2
+a[1]=1
+sortarr 'a'
+msg a[0]
+===
+sortarr 'args'
+msg 'x'
+===
+gosub 'f', 3
+sortarr 'result'
+msg res
+===
+sortarr('a')
+msg 'p'
+===
+setvar('a', 3)
+msg a
+===
+SORTARR 'a'
+msg 'cap'
+===
+SetVar 'a', 4
+msg a
+===
+sortarr$ 'a'
+===
+setvar'a', 4
+msg a
+===
+sortarr 'a' ,0
+===
+scanstr('r', 'a1', '\d')
+msg $r[0]

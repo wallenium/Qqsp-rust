@@ -33,6 +33,8 @@ typedef struct QspHost {
 
 QspEngine *qsp_new(const QspHost *host);
 void qsp_free(QspEngine *);
+/* Additive QSP-5.9-Erweiterungen; vor dem Laden eines Spiels setzen. */
+void qsp_set_ext59(QspEngine *, int on);
 void qsp_string_free(char *);
 char *qsp_version(void);
 void qsp_enable_debug(QspEngine *, int on);

@@ -110,10 +110,18 @@ struct HTMLView: NSViewRepresentable {
         function R(a,b){var x=L(a),y=L(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
         function rgb(s){var m=s.match(/\\d+(\\.\\d+)?/g);return m?m.map(Number):null}
         function bgOf(el){for(;el&&el.nodeType==1;el=el.parentElement){var m=rgb(getComputedStyle(el).backgroundColor);if(m&&(m.length<4||m[3]>.5))return m.slice(0,3)}return def}
+        var MID=[120,120,120];
+        document.querySelectorAll('a').forEach(function(el){
+          if(el.querySelector('img'))return;var c=rgb(getComputedStyle(el).color);if(!c)return;c=c.slice(0,3);
+          // Hintergrund unter dem Glas ist unbekannt: Link muss auf Fensterfarbe UND auf Mittelgrau lesbar sein
+          if(Math.min(R(c,def),R(c,MID))>=4.5)return;
+          el.style.setProperty('color','#fff','important');
+          el.style.setProperty('text-shadow','0 0 1px #000,0 0 2px #000,0 0 3px rgba(0,0,0,.7)','important');
+          el.dataset.fixed='1'});
         document.querySelectorAll('body, body *').forEach(function(el){
           var c=rgb(getComputedStyle(el).color);if(!c)return;c=c.slice(0,3);
-          var bg=bgOf(el);if(R(c,bg)>=4.5)return;
-          var t=L(bg)<.5?255:0;
+          if(el.dataset.fixed)return;var bg=bgOf(el);if(R(c,bg)>=4.5)return;
+          var t=R([255,255,255],bg)>=R([0,0,0],bg)?255:0;
           for(var k=1;k<=20;k++){var n=c.map(function(v){return Math.round(v+(t-v)*k/20)});
             if(R(n,bg)>=4.5||k==20){el.style.setProperty('color','rgb('+n.join(',')+')','important');return}}
         });})();</script>

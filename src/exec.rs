@@ -377,7 +377,7 @@ impl Engine {
         let vi = self.var_ref("ARGS", true)?;
         let local = self.take_var(vi);
         self.set_args(vi, args);
-        let lines: Vec<Rc<Line>> = preprocess(code).into_iter().map(Rc::new).collect();
+        let lines: Vec<Rc<Line>> = preprocess(code, self.ext59).into_iter().map(Rc::new).collect();
         self.exec_block_locals(&lines, 0, lines.len(), 0, None)?;
         let vi = self.var_ref("ARGS", true)?;
         self.put_var(vi, local);
@@ -802,6 +802,9 @@ impl Engine {
             st::CLA | st::CLEAR | st::CLS | st::CMDCLEAR | st::MCLEAR | st::KILLALL | st::FREELIB => self.stat_clear(code)?,
             st::CLOSEALL | st::CLOSE => self.stat_close_file(args),
             st::COPYARR => self.stat_copy_arr(args)?,
+            st::SORTARR => self.stat_sort_arr(args)?,
+            st::SCANSTR => self.stat_scan_str(args)?,
+            st::SETVAR => self.stat_set_var_ext(args)?,
             st::KILLVAR => self.stat_kill_var(args)?,
             st::DELACT => self.stat_del_act(args),
             st::DELOBJ | st::KILLOBJ => self.stat_del_obj(ext, args)?,

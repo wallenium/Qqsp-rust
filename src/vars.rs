@@ -106,7 +106,7 @@ impl Engine {
         Ok((self.var_ref(n, create)?, is_str))
     }
 
-    fn var_text_index(&mut self, vi: usize, s: &str, create: bool) -> i32 {
+    pub(crate) fn var_text_index(&mut self, vi: usize, s: &str, create: bool) -> i32 {
         let u = upper(s);
         let found = {
             let inds = &self.vars[vi].data.indices;
